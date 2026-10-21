@@ -106,6 +106,11 @@
   .pad button:active{background:var(--press)} .pad button:last-child{background:var(--brand);color:#fff}
   .clr{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--chip);font-size:12px;font-weight:700;vertical-align:1px}
   .warnbox{background:var(--warnbg);color:var(--warn);border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px;margin-top:6px}
+  .tech{background:#FFFDF6;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
+  .tech h4{margin:0 0 2px;font-size:16px} .tech ul{margin:8px 0 0;padding-left:18px} .tech li{margin:3px 0;font-size:15px}
+  .tech .mode{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--chip);font-size:14px}
+  .tech a{display:inline-block;margin-top:10px;font-weight:700;color:var(--em)}
+  .badgeT{display:inline-block;margin-left:6px;font-size:12px}
   .hide{display:none!important}
   .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
   @keyframes s{to{transform:rotate(360deg)}}
@@ -153,6 +158,7 @@
       <div class="seg"><button id="thEm" onclick="setTheme('em')">Изумрудное</button><button id="thCoal" onclick="setTheme('coal')">Угольное</button></div>
       <button class="btn" onclick="saveStage()">Готово</button>
       <button class="btn ghost" onclick="logout()">Выйти (сменить пользователя)</button>
+      <p class="muted" style="text-align:center;margin:12px 0 0">Версия приложения: <b id="verP"></b></p>
     </div>
   </section>
 
@@ -174,6 +180,7 @@
       <div class="row"><b style="flex:1" id="listTitle">На моём участке</b><button class="badge" style="border:0" onclick="loadList()">обновить</button></div>
       <ul class="list" id="stageList"><li class="muted">—</li></ul>
     </div>
+    <p class="muted" style="text-align:center;margin:4px 0 14px">версия <span id="verH"></span></p>
   </section>
 
   <!-- Карточка паллеты -->
@@ -190,7 +197,12 @@
       <label>Позиция сменного задания на сегодня</label>
       <input id="castFilter" placeholder="поиск: заказ, контрагент, артикул, цвет" oninput="drawCastPlan()" class="hide">
       <div id="castPlanList"><p class="muted">загрузка задания…</p></div>
-      <label>Количество, шт</label><input id="castQty" type="number" inputmode="numeric" min="1">
+      <div id="techBox" class="tech hide"></div>
+      <button class="btn ghost hide" id="btnTech" onclick="toggleTech()">🧪 Техкарта (рецептура)</button>
+      <label>Единица измерения</label>
+      <div class="seg"><button id="uPcs" class="on" onclick="setUnit('pcs')">Штуки</button><button id="uForm" onclick="setUnit('form')">Формы</button></div>
+      <label id="qtyLbl">Количество, шт</label><input id="castQty" type="number" inputmode="numeric" min="1" oninput="qtyHint()">
+      <p class="muted" id="qtyHint" style="margin:6px 0 0"></p>
       <button class="btn ok" id="btnCast" onclick="doCast(this)">Залита — поставить на «<span id="firstStage"></span>»</button>
     </div>
 
@@ -326,7 +338,8 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-function wk(k) { return WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
+var APP_VER = '21.10.2026 · 5';
+function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
   ['pin', 'user', 'stage'].forEach(function (k) { if (!ls(wk(k)) && ls('c3_' + k) && (WS.id === 'c3' || WORKSHOPS.filter(wsOk).length === 1)) ls(wk(k), ls('c3_' + k)); });
@@ -371,12 +384,13 @@ function planRowHtml(x, onclick, sel) {
   return '<button class="pl' + (done ? ' full' : '') + (sel ? ' sel' : '') + '"' + (onclick ? ' onclick="' + onclick + '"' : ' disabled') + '>' +
     '<span class="pa"><b>' + esc(x.art) + '</b>' + (x.color ? ' <span class="clr">' + esc(x.color) + '</span>' : '') +
     (x.name ? '<small>' + esc(x.name) + '</small>' : '') + (sub ? '<small>' + sub + '</small>' : '') +
-    (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') + '</span>' +
+    (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') +
+    (onclick && (x.tech || x.perMold) ? '<small>' + (x.tech ? '🧪 ' + esc(x.tech.recipe || 'техкарта') : '') + (x.tech && x.perMold ? ' · ' : '') + (x.perMold ? x.perMold + ' шт в форме' : '') + '</small>' : '') + '</span>' +
     '<span class="pq' + (done ? ' done' : '') + '">' + n0(x.fact) + (x.plan ? ' / ' + n0(x.plan) : '') + (done ? ' ✓' : '') + '</span></button>';
 }
 var CP = [], castSel = -1;
 function loadCastPlan() {
-  CP = []; castSel = -1; $('btnCast').disabled = true; show('castFilter', false);
+  CP = []; castSel = -1; $('btnCast').disabled = true; show('castFilter', false); show('btnTech', false); show('techBox', false); $('qtyHint').innerHTML = '';
   $('castPlanList').innerHTML = '<p class="muted">загрузка задания…</p>';
   call('apiPlan', [state.pin], function (pl) {
     CP = pl.rows.filter(function (x) { return x.plan > 0; });
@@ -384,8 +398,8 @@ function loadCastPlan() {
       $('castPlanList').innerHTML = '<div class="warnbox">На сегодня нет сменного задания.<br>Заливать можно только по заданию — обратитесь к мастеру.</div>';
       return;
     }
-    if (CP.length === 1) castSel = 0;
     show('castFilter', CP.length > 6); drawCastPlan();
+    if (CP.length === 1) pickPlan(0); else setUnit(UNIT);
   });
 }
 function drawCastPlan() {
@@ -400,8 +414,41 @@ function drawCastPlan() {
 function pickPlan(i) {
   castSel = i; drawCastPlan();
   var x = CP[i];
-  if (x.left > 0 && !val('castQty')) $('castQty').placeholder = 'осталось по плану: ' + x.left;
+  show('btnTech', !!x.tech); show('techBox', false);
+  $('uForm').disabled = !x.perMold;
+  if (!x.perMold && UNIT === 'form') setUnit('pcs'); else setUnit(UNIT);
   $('castQty').focus();
+}
+var UNIT = ls('cast_unit') === 'form' ? 'form' : 'pcs';
+function setUnit(u) {
+  var x = CP[castSel];
+  if (u === 'form' && x && !x.perMold) { toast('Для ' + x.art + ' не задано «Шт в форме» в справочнике', false); u = 'pcs'; }
+  UNIT = u; ls('cast_unit', u);
+  $('uPcs').classList.toggle('on', u === 'pcs'); $('uForm').classList.toggle('on', u === 'form');
+  $('qtyLbl').textContent = u === 'form' ? 'Количество форм' : 'Количество, шт';
+  qtyHint();
+}
+function castPcs() {
+  var x = CP[castSel], n = Number(val('castQty')) || 0;
+  return UNIT === 'form' && x && x.perMold ? n * x.perMold : n;
+}
+function qtyHint() {
+  var x = CP[castSel], n = Number(val('castQty')) || 0, h = '';
+  if (x && UNIT === 'form') h = x.perMold + ' шт в форме' + (n ? ' → <b style="color:var(--ink)">' + n * x.perMold + ' шт</b>' : '');
+  if (x && x.left > 0) h += (h ? ' · ' : '') + 'осталось по плану ' + x.left + ' шт' + (x.perMold ? ' (≈ ' + Math.ceil(x.left / x.perMold) + ' форм)' : '');
+  $('qtyHint').innerHTML = h;
+}
+function toggleTech() {
+  var x = CP[castSel]; if (!x || !x.tech) return;
+  var t = x.tech, box = $('techBox');
+  if (!box.classList.contains('hide')) { show('techBox', false); return; }
+  box.innerHTML = '<h4>🧪 ' + esc(t.recipe || 'Рецептура') + '</h4>' +
+    '<div class="muted">' + esc(x.art) + (x.color ? ' · цвет ' + esc(x.color) : '') + (t.forArt ? '' : ' · общая для цвета') + '</div>' +
+    (t.parts.length ? '<ul>' + t.parts.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '') +
+    (t.mode ? '<div class="mode">' + esc(t.mode) + '</div>' : '') +
+    (t.note ? '<div class="muted" style="margin-top:6px">' + esc(t.note) + '</div>' : '') +
+    (t.url ? '<a href="' + esc(t.url) + '" target="_blank" rel="noopener">Открыть полную техкарту ↗</a>' : '');
+  show('techBox', true);
 }
 
 /* ---------- отчёты ---------- */
@@ -468,12 +515,14 @@ function toggleTheme() { setTheme(curTheme() === 'coal' ? 'em' : 'coal'); toast(
 /* ---------- старт ---------- */
 function init() {
   setTheme(curTheme());
+  $('verH').textContent = APP_VER + (window.STANDALONE ? ' · сайт' : ' · Apps Script'); $('verP').textContent = $('verH').textContent;
   buildPad();
   if (!state.pin) { openLogin(); return; }
   call('apiInit', [state.pin], function (c) { afterLogin(c, false); });
 }
 function afterLogin(c, fresh) {
   APP = c;
+  if (!window.STANDALONE && c.ws) WS = wsById(c.ws) || { id: c.ws, name: c.wsName || 'Цех', api: '' };
   if (c.user && c.user.name) { state.user = c.user.name; ls(wk('user'), state.user); }
   if (!state.user) state.user = 'Без имени';
   if (fresh || !state.stage || c.stages.indexOf(state.stage) < 0) state.stage = (c.user && c.user.stage) || state.stage || '';
@@ -506,6 +555,11 @@ function closeWs() { show('vWs', false); if (APP && state.stage) home(); else op
 function switchWs(id, thenOpen) {
   var w = wsById(id);
   if (!wsOk(w)) { toast('Цех не подключён', false); return; }
+  if (!window.STANDALONE) {   // приложение открыто из Apps Script — переходим на приложение другого цеха
+    if (WS && w.id === WS.id) { closeWs(); return; }
+    window.open(w.api + '?w=' + encodeURIComponent(w.id) + (thenOpen ? '&p=' + encodeURIComponent(thenOpen) : ''), '_top');
+    return;
+  }
   var prevPin = state.pin;
   WS = w; API_URL = w.api; ls('ws_cur', w.id);
   APP = null; P = null; state = loadState(); START_ID = thenOpen || '';
@@ -715,10 +769,12 @@ function render(p) {
 
 /* ---------- залить ---------- */
 function doCast(btn) {
-  var x = CP[castSel], q = Number(val('castQty'));
+  var x = CP[castSel], n = Number(val('castQty'));
   if (!x) { toast('Выберите позицию сменного задания', false); return; }
-  if (!(q > 0)) { toast('Укажите количество', false); return; }
-  act({ op: 'Залито', art: x.art, qty: q, line: { order: x.order, art: x.art, color: x.color } }, btn);
+  if (!(n > 0)) { toast(UNIT === 'form' ? 'Укажите количество форм' : 'Укажите количество', false); return; }
+  var prm = { op: 'Залито', art: x.art, qty: castPcs(), line: { order: x.order, art: x.art, color: x.color } };
+  if (UNIT === 'form') { prm.unit = 'form'; prm.forms = n; }
+  act(prm, btn);
 }
 
 /* ---------- работа ---------- */
