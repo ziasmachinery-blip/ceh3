@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Цех 3 — паллеты</title>
+<meta name="theme-color" content="#1F4E78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Цех 3">
+<style>
+  :root{
+    --bg:#F3F4F1; --card:#FFFFFF; --ink:#16201B; --muted:#5E6A63; --line:#D9DED9;
+    --brand:#1F4E78; --ok:#2E7D32; --okbg:#E3F1E4; --warn:#B26A00; --warnbg:#FFF3D6;
+    --bad:#C62828; --badbg:#FDE7E7; --chip:#E7ECF2;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.35 -apple-system,Roboto,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:5;background:var(--brand);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px}
+  header h1{font-size:17px;margin:0;flex:1;font-weight:700;letter-spacing:.2px}
+  header button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:10px;padding:7px 10px;font-size:13px}
+  main{padding:12px;max-width:560px;margin:0 auto}
+  .card{background:var(--card);border-radius:14px;padding:14px;margin:0 0 12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .row{display:flex;gap:8px;align-items:center}
+  .btn{display:block;width:100%;border:0;border-radius:12px;padding:15px 14px;font-size:17px;font-weight:700;color:#fff;background:var(--brand);margin:8px 0 0}
+  .btn.ok{background:var(--ok)} .btn.bad{background:var(--bad)} .btn.warn{background:var(--warn)}
+  .btn.ghost{background:var(--chip);color:var(--ink);font-weight:600}
+  .btn:disabled{opacity:.5}
+  input,select,textarea{width:100%;font-size:17px;padding:12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+  input:focus,select:focus{outline:none;border-color:var(--brand)}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  .muted{color:var(--muted);font-size:13px}
+  .big{font-size:26px;font-weight:800;letter-spacing:.5px}
+  .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:700;background:var(--chip)}
+  .b-work{background:#DDEBF7;color:#1F4E78} .b-gp{background:var(--okbg);color:var(--ok)} .b-closed{background:#EEE;color:#555}
+  .b-new{background:var(--warnbg);color:var(--warn)} .b-bad{background:var(--badbg);color:var(--bad)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .grid button{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:14px 8px;font-size:15px;font-weight:600;color:var(--ink)}
+  .grid button.next{border-color:var(--ok);background:var(--okbg);color:var(--ok)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:10px;font-size:15px}
+  .kv div:nth-child(odd){color:var(--muted)}
+  .hist{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--muted)} .hist li{margin:3px 0}
+  .tabs{display:flex;gap:6px;margin-top:12px} .tabs button{flex:1;border:0;border-radius:10px;padding:10px 4px;font-size:14px;font-weight:700;background:var(--chip);color:var(--ink)}
+  .tabs button.on{background:var(--ink);color:#fff}
+  .seg{display:flex;gap:6px;margin-top:6px} .seg button{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:11px 6px;font-size:14px;font-weight:600}
+  .seg button.on{border-color:var(--ink);background:var(--ink);color:#fff}
+  #scanOv{position:fixed;inset:0;z-index:30;background:#000;display:flex;flex-direction:column}
+  #scanOv .ovtop{display:flex;align-items:center;gap:10px;padding:14px 16px;color:#fff;font-size:16px} #scanOv .ovtop b{flex:1}
+  #scanOv .ovtop button{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:999px;width:42px;height:42px;font-size:20px}
+  #reader{flex:1;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center} #reader video{width:100%!important;height:auto!important;object-fit:cover}
+  #scanOv .ovbot{display:flex;gap:10px;padding:14px 16px 22px} #scanOv .ovbot button{flex:1;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;background:rgba(255,255,255,.16);color:#fff}
+  .toast{position:fixed;left:12px;right:12px;bottom:14px;z-index:20;padding:14px 16px;border-radius:14px;font-weight:700;font-size:15px;box-shadow:0 6px 20px rgba(0,0,0,.18);display:none}
+  .toast.ok{background:var(--ok);color:#fff} .toast.bad{background:var(--bad);color:#fff}
+  .list{margin:6px 0 0;padding:0;list-style:none} .list li{display:flex;justify-content:space-between;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);font-size:15px}
+  .list li:last-child{border-bottom:0} .stale{color:var(--warn);font-weight:700}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
+  .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:118px;margin:0;border:0;border-radius:16px;font-size:19px;font-weight:700;line-height:1.2;font-family:inherit;color:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .tile .ti{font-size:34px;line-height:1}
+  .t-scan{background:var(--brand)} .t-rep{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+  .nav{border:0;background:var(--chip);border-radius:10px;width:44px;height:44px;font-size:24px;font-weight:700;color:var(--ink)}
+  .nav:disabled{opacity:.35}
+  .sh-h{display:flex;align-items:baseline;gap:8px} .sh-h b{flex:1;font-size:17px}
+  .bar{height:8px;border-radius:99px;background:var(--chip);overflow:hidden;margin:6px 0 2px} .bar i{display:block;height:100%;background:var(--brand);border-radius:99px}
+  .bar.done i{background:var(--ok)} .bar.over i{background:var(--warn)}
+  .pct{font-weight:800;font-size:15px} .pct.done{color:var(--ok)} .pct.low{color:var(--bad)}
+  .rl{margin:8px 0 0;padding:0;list-style:none} .rl li{padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+  .rl .r1{display:flex;gap:8px} .rl .r1 span:first-child{flex:1} .num{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .kpis div{background:var(--bg);border-radius:10px;padding:8px} .kpis b{display:block;font-size:20px;font-variant-numeric:tabular-nums} .kpis span{font-size:12px;color:var(--muted)}
+  .stg{cursor:pointer} .stg .sq{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+  .pl{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;margin:6px 0 0;font:inherit;color:var(--ink)}
+  .pl.sel{border-color:var(--brand);background:#EEF4FA} .pl.full{opacity:.6}
+  .pl .pa{flex:1;min-width:0} .pl .pa small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl .pq{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap} .pl .pq.done{color:var(--ok)}
+  .hide{display:none!important}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body data-start="<?= startId ?>">
+<header>
+  <button id="hdrHome" class="hide" onclick="home()" aria-label="На главную">⌂ Главная</button>
+  <h1 onclick="home()" style="cursor:pointer">Цех 3 · паллеты</h1>
+  <button id="hdrStage" onclick="openSetup()">участок: —</button>
+</header>
+
+<main>
+  <!-- PIN / настройка оператора -->
+  <section id="vSetup" class="card hide">
+    <div class="big" style="font-size:20px">Настройка телефона</div>
+    <p class="muted">Один раз на этом телефоне. Данные хранятся только в браузере.</p>
+    <div id="pinBox"><label>PIN-код цеха</label><input id="inPin" type="password" inputmode="numeric" autocomplete="off"></div>
+    <label>Ваше имя (будет в истории перемещений)</label><input id="inUser" placeholder="Например: Иванов">
+    <label>Мой участок</label><select id="inStage"></select>
+    <button class="btn" onclick="saveSetup()">Сохранить</button>
+  </section>
+
+  <!-- Главный экран -->
+  <section id="vHome" class="hide">
+    <div class="tiles">
+      <button class="tile t-scan" onclick="scanStart()"><span class="ti">📷</span>Сканировать</button>
+      <button class="tile t-rep" onclick="openReport()"><span class="ti">📊</span>Отчёты</button>
+    </div>
+    <input id="photoQr" type="file" accept="image/*" capture="environment" class="hide" onchange="scanPhoto(this)">
+    <div id="readerFile" class="hide"></div>
+    <div class="card">
+      <label style="margin-top:0">Номер паллеты или ручной сканер штрихкодов</label>
+      <div class="row"><input id="inId" placeholder="PL-000123 или 123" autocapitalize="characters" enterkeyhint="go"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();openId(this.value);}"><button class="btn" style="width:auto;margin:0;padding:12px 16px" onclick="openId(val('inId'))">Найти</button></div>
+      <p class="muted" style="margin:10px 0 0">Можно и встроенной камерой телефона: наведите на QR-код и нажмите на ссылку — карточка паллеты откроется сразу.</p>
+    </div>
+    <div class="card">
+      <div class="row"><b style="flex:1" id="listTitle">На моём участке</b><button class="badge" style="border:0" onclick="loadList()">обновить</button></div>
+      <ul class="list" id="stageList"><li class="muted">—</li></ul>
+    </div>
+  </section>
+
+  <!-- Карточка паллеты -->
+  <section id="vPallet" class="hide">
+    <div class="card">
+      <div class="row"><div class="big" id="pId" style="flex:1"></div><span class="badge" id="pStatus"></span></div>
+      <div class="kv" id="pKv"></div>
+      <details style="margin-top:8px"><summary class="muted">История</summary><ol class="hist" id="pHist"></ol></details>
+    </div>
+
+    <!-- новая паллета -->
+    <div class="card hide" id="aCast">
+      <b>Залить новую паллету</b>
+      <div id="castPlan" class="hide"><label>Сменное задание на сегодня — нажмите, чтобы выбрать артикул</label><div id="castPlanList"></div></div>
+      <label>Артикул</label>
+      <input id="castFilter" placeholder="поиск: артикул, название или формат" oninput="fillArts()">
+      <select id="castArt" size="5" style="margin-top:6px" onchange="drawCastPlan()"></select>
+      <label>Количество, шт</label><input id="castQty" type="number" inputmode="numeric" min="1">
+      <button class="btn ok" onclick="doCast(this)">Залита — поставить на «<span id="firstStage"></span>»</button>
+    </div>
+
+    <!-- действия с паллетой в работе -->
+    <div class="hide" id="aWork">
+      <p class="muted" style="margin:12px 2px 0">Что сделать с паллетой:</p>
+      <div class="tabs" style="margin-top:6px"><button id="tMove" class="on" onclick="tab('move')">Переместить</button><button id="tBad" onclick="tab('bad')">Брак</button><button id="tMerge" onclick="tab('merge')">Слияние</button><button id="tShip" onclick="tab('ship')">Отгрузить</button></div>
+
+      <div class="card" id="pMove" style="margin-top:8px">
+        <button class="btn ok" id="btnMine" onclick="pickTo(state.stage)"></button>
+        <label>или выберите участок</label>
+        <div class="grid" id="toGrid"></div>
+        <div id="moveForm" class="hide">
+          <label>Куда: <b id="moveTo"></b>. Годных принято, шт</label>
+          <input id="goodQty" type="number" inputmode="numeric" min="0" oninput="toggleLoss()">
+          <div id="lossBox" class="hide">
+            <p class="muted" id="lossTxt" style="color:var(--bad)"></p>
+            <label>Причина брака</label><select id="lossReason"></select>
+          </div>
+          <button class="btn ok" onclick="doMove(this)">Подтвердить перемещение</button>
+        </div>
+      </div>
+
+      <div class="card hide" id="pBad" style="margin-top:8px">
+        <label>Сколько изделий с браком, шт</label><input id="badQty" type="number" inputmode="numeric" min="1">
+        <label>Причина</label><select id="badReason"></select>
+        <label>Решение</label>
+        <div class="seg"><button id="dScrap" class="on" onclick="decide(false)">Списать</button><button id="dRework" onclick="decide(true)">На доработку</button></div>
+        <button class="btn bad" onclick="doBad(this)">Провести брак</button>
+      </div>
+
+      <div class="card hide" id="pMerge" style="margin-top:8px">
+        <b>Слияние / перекладка на новую норму лотка</b>
+        <p class="muted" style="margin:4px 0 0">1) Добавьте все паллеты, которые объединяете (тот же артикул, тот же участок). 2) Укажите новые паллеты (наклейки) и сколько на каждой. Старые коды закроются.</p>
+        <label>Было (паллеты-источники)</label>
+        <ul class="list" id="mSrc"></ul>
+        <div class="row" style="margin-top:6px"><input id="mAddId" placeholder="номер PL-… или цифры" autocapitalize="characters"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();mAddSrc(this.value);}">
+          <button class="btn ghost" style="width:auto;margin:0;padding:12px 12px" onclick="mAddSrc(val('mAddId'))">+</button>
+          <button class="btn ghost" style="width:auto;margin:0;padding:12px 12px" onclick="scanInto(mAddSrc)">📷</button></div>
+        <label>Стало (новые паллеты)</label>
+        <div id="mTgt"></div>
+        <button class="btn ghost" onclick="mAddTgt('')">+ ещё паллета</button>
+        <p id="mSum" class="muted" style="margin:10px 0 0"></p>
+        <div id="mLossBox" class="hide"><label>Причина недостачи (уйдёт в брак)</label><select id="mReason"></select></div>
+        <button class="btn ok" onclick="doMerge(this)">Подтвердить слияние</button>
+      </div>
+
+      <div class="card hide" id="pShip" style="margin-top:8px">
+        <p id="shipTxt" class="muted"></p>
+        <button class="btn warn" id="btnShip" onclick="doShip(this)">Отгружена со склада</button>
+      </div>
+    </div>
+
+    <div class="card hide" id="aClosed"><b>Паллета закрыта.</b> <span class="muted">Действия недоступны.</span></div>
+
+    <button class="btn" onclick="home()">⌂ На главную — сканировать новый код</button>
+  </section>
+
+  <!-- Отчёты -->
+  <section id="vReport" class="hide">
+    <div class="tabs" style="margin:0 0 10px"><button id="rtShift" class="on" onclick="rTab('shift')">Задание заливки</button><button id="rtStock" onclick="rTab('stock')">Шт на этапах</button></div>
+    <div id="rShift">
+      <div class="card row" style="padding:8px">
+        <button class="nav" onclick="rDay(-1)" aria-label="Предыдущий день">‹</button>
+        <div style="flex:1;text-align:center"><b id="rDate">—</b><div class="muted" id="rDateSub"></div></div>
+        <button class="nav" id="rNext" onclick="rDay(1)" aria-label="Следующий день">›</button>
+      </div>
+      <div id="rShiftBody"><div class="card muted">загрузка…</div></div>
+    </div>
+    <div id="rStock" class="hide">
+      <div class="card"><div class="row"><b style="flex:1">Сейчас в цехе</b><button class="badge" style="border:0" onclick="loadReport()">обновить</button></div>
+        <div class="kpis" id="rKpi"></div></div>
+      <div id="rStockBody"></div>
+    </div>
+    <button class="btn ghost" onclick="home()">⌂ На главную</button>
+  </section>
+</main>
+
+<div id="scanOv" class="hide">
+  <div class="ovtop"><b>Наведите камеру на QR-код</b><button onclick="stopScan()" aria-label="Закрыть">✕</button></div>
+  <div id="reader"></div>
+  <div class="ovbot"><button onclick="stopScan();$('photoQr').click()">📷 Сделать фото</button><button id="torchBtn" class="hide" onclick="torch()">🔦 Фонарик</button></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==== Адрес таблицы (ссылка /exec веб-приложения Apps Script). Нужен, только когда страница открыта НЕ из Apps Script
+   (например, с GitHub Pages). Вставьте свою ссылку между кавычками. ==== */
+var API_URL = 'ВСТАВЬТЕ_ССЫЛКУ_EXEC';
+(function () {
+  if (window.google && google.script && google.script.run) return;   // открыто из Apps Script — работает как раньше
+  window.STANDALONE = true;
+  try {
+    var q = new URLSearchParams(location.search).get('api');
+    if (q && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(q)) localStorage.setItem('c3_api', q);
+    var saved = localStorage.getItem('c3_api');
+    if (saved && API_URL.indexOf('script.google.com') < 0) API_URL = saved;
+  } catch (e) {}
+  function mk(ok, fail) {
+    return new Proxy({}, { get: function (_, fn) {
+      if (fn === 'withSuccessHandler') return function (h) { return mk(h, fail); };
+      if (fn === 'withFailureHandler') return function (h) { return mk(ok, h); };
+      return function () {
+        var args = [].slice.call(arguments);
+        if (API_URL.indexOf('script.google.com') < 0) { fail && fail(new Error('Не задан адрес таблицы (API_URL) в index.html')); return; }
+        fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                         body: JSON.stringify({ fn: fn, args: args }) })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d && d.ok) { ok && ok(d.result); } else { fail && fail(new Error((d && d.error) || 'Ошибка сервера')); } })
+          .catch(function () { fail && fail(new Error('Нет связи с таблицей — проверьте интернет и повторите')); });
+      };
+    } });
+  }
+  window.google = { script: { run: mk(null, null) } };
+})();
+</script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
+        onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';document.head.appendChild(s)"></script>
+<script>
+var START_ID = (document.body.getAttribute('data-start') || '').trim();
+if (/^<\?/.test(START_ID)) START_ID = '';
+if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
+var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
+var state = { pin: ls('c3_pin') || '', user: ls('c3_user') || '', stage: ls('c3_stage') || '' };
+
+function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+function $(id) { return document.getElementById(id); }
+function val(id) { return $(id).value.trim(); }
+function show(id, on) { $(id).classList.toggle('hide', !on); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function toast(msg, ok) {
+  var t = $('toast'); t.textContent = msg; t.className = 'toast ' + (ok ? 'ok' : 'bad'); t.style.display = 'block';
+  try { navigator.vibrate && navigator.vibrate(ok ? 60 : [80, 60, 80]); } catch (e) {}
+  clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = 'none'; }, ok ? (String(msg).length > 80 ? 6000 : 3500) : 6000);
+}
+function busy(btn, on) { if (!btn) return; if (on) { btn._t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>Сохраняю…'; btn.disabled = true; } else { btn.innerHTML = btn._t || btn.innerHTML; btn.disabled = false; } }
+function call(fn, args, ok, fail) {
+  var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function (e) {
+    var m = (e && e.message) || String(e);
+    if (/PIN/.test(m)) { state.pin = ''; ls('c3_pin', ''); openSetup(true); toast('Неверный PIN-код', false); }
+    else toast(m.replace(/^(Error|Exception):\s*/, ''), false);
+    fail && fail(m);
+  });
+  r[fn].apply(r, args);
+}
+function extractId(text) {
+  var t = String(text || '').toUpperCase().trim();
+  var m = t.match(/PL-?\d+/); if (m) return 'PL-' + m[0].replace(/\D/g, '').padStart(6, '0');
+  if (/^\d{1,9}$/.test(t)) return 'PL-' + t.padStart(6, '0');   // штрихкод/ввод только цифрами
+  return '';
+}
+
+
+
+/* ---------- сменное задание в форме заливки ---------- */
+function planRowHtml(x, onclick, sel) {
+  var done = x.plan && x.fact >= x.plan;
+  return '<button class="pl' + (done ? ' full' : '') + (sel ? ' sel' : '') + '"' + (onclick ? ' onclick="' + onclick + '"' : ' disabled') + '>' +
+    '<span class="pa"><b>' + esc(x.art) + '</b>' + (x.name ? '<small>' + esc(x.name) + '</small>' : '') + (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') + '</span>' +
+    '<span class="pq' + (done ? ' done' : '') + '">' + n0(x.fact) + (x.plan ? ' / ' + n0(x.plan) : '') + (done ? ' ✓' : '') + '</span></button>';
+}
+var CP = [];
+function loadCastPlan() {
+  show('castPlan', false);
+  call('apiPlan', [state.pin], function (pl) {
+    CP = pl.rows.filter(function (x) { return x.plan > 0; });
+    if (!CP.length) return;
+    drawCastPlan(); show('castPlan', true);
+  });
+}
+function drawCastPlan() {
+  var cur = $('castArt').value;
+  $('castPlanList').innerHTML = CP.map(function (x, i) { return planRowHtml(x, 'pickPlan(' + i + ')', x.art === cur); }).join('');
+}
+function pickPlan(i) {
+  var x = CP[i]; $('castFilter').value = ''; fillArts();
+  $('castArt').value = x.art;
+  if ($('castArt').value !== x.art) toast('Артикула ' + x.art + ' нет в списке «Выпускается»', false);
+  drawCastPlan(); $('castQty').focus();
+}
+
+/* ---------- отчёты ---------- */
+var R = { key: '', tab: 'shift', data: null };
+function n0(x) { return Math.round(x).toLocaleString('ru-RU'); }
+function dkey(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function openReport() {
+  show('vHome', false); show('vPallet', false); show('vSetup', false); show('vReport', true); show('hdrHome', true);
+  window.scrollTo(0, 0); R.key = R.key || dkey(new Date()); rTab(R.tab); loadReport();
+}
+function rTab(t) {
+  R.tab = t; $('rtShift').classList.toggle('on', t === 'shift'); $('rtStock').classList.toggle('on', t === 'stock');
+  show('rShift', t === 'shift'); show('rStock', t === 'stock');
+}
+function rDay(d) {
+  var p = R.key.split('-'); var x = new Date(+p[0], +p[1] - 1, +p[2] + d);
+  R.key = dkey(x); loadReport();
+}
+function loadReport() {
+  $('rShiftBody').innerHTML = '<div class="card muted">загрузка…</div>';
+  call('apiReport', [state.pin, R.key], function (r) { R.data = r; R.key = r.key; drawShift(r); drawStock(r); });
+}
+function drawShift(r) {
+  $('rDate').textContent = r.date; $('rDateSub').textContent = r.today ? 'сегодня · обновлено ' + r.updated : '';
+  $('rNext').disabled = r.today;
+  var s = r.shift, html = '';
+  var pct = s.plan ? Math.round(s.fact / s.plan * 100) : null;
+  html += '<div class="card"><div class="sh-h"><b>' + esc(s.stage) + '</b>' +
+    (pct == null ? '<span class="muted">' + (s.fact ? 'без задания' : '—') + '</span>' : '<span class="pct ' + (pct >= 100 ? 'done' : '') + '">' + pct + '%</span>') + '</div>' +
+    '<div class="muted"><span class="num" style="color:var(--ink)">' + n0(s.fact) + '</span>' + (s.plan ? ' из ' + n0(s.plan) : '') + ' шт залито' +
+    (s.plan && s.fact < s.plan ? ' · осталось <b style="color:var(--ink)">' + n0(s.plan - s.fact) + '</b>' : '') + '</div>';
+  if (s.plan) html += '<div class="bar ' + (pct > 100 ? 'over' : pct >= 100 ? 'done' : '') + '"><i style="width:' + Math.min(pct, 100) + '%"></i></div>';
+  if (!s.hasPlan) html += '<p class="muted" style="margin:10px 0 0">Задание на ' + esc(r.date) + ' не введено — заполните лист «Сменное задание» в таблице.</p>';
+  html += s.rows.map(function (x) { return planRowHtml(x, '', false); }).join('');
+  html += '</div><p class="muted" style="margin:0 4px 12px">Выполнение отмечается автоматически, когда паллету заливают по QR-коду.</p>';
+  $('rShiftBody').innerHTML = html;
+}
+function drawStock(r) {
+  var d = r.day;
+  $('rKpi').innerHTML = [[r.wip, 'в работе, шт'], [d.cast, 'залито за день'], [d.gp, 'на СГП за день'], [d.bad, 'брак за день'], [d.rework, 'на доработку'], [d.ship, 'отгружено за день']]
+    .map(function (k) { return '<div><b>' + n0(k[0]) + '</b><span>' + k[1] + '</span></div>'; }).join('');
+  $('rStockBody').innerHTML = r.stock.map(function (s, i) {
+    if (s.rework && !s.qty) return '';
+    return '<div class="card stg" onclick="var e=document.getElementById(\'sa' + i + '\');e.classList.toggle(\'hide\')">' +
+      '<div class="row"><div style="flex:1"><b>' + esc(s.stage) + '</b><div class="muted">' + (s.rework ? 'изделия на доработке' : s.pallets + ' пал.') + ' · ' + s.arts.length + ' арт.</div></div>' +
+      '<div class="sq">' + n0(s.qty) + '</div><span class="muted">шт</span></div>' +
+      '<ul class="rl hide" id="sa' + i + '">' + (s.arts.map(function (a) {
+        return '<li><div class="r1"><span><b>' + esc(a.art) + '</b>' + (a.name ? ' · ' + esc(a.name) : '') + '</span><span class="num">' + n0(a.qty) + '</span></div></li>';
+      }).join('') || '<li class="muted">пусто</li>') + '</ul></div>';
+  }).join('') + '<p class="muted" style="margin:0 4px 12px">Нажмите на участок, чтобы увидеть артикулы. Показатели «за день» — за ' + esc(r.date) + '.</p>';
+}
+
+/* ---------- старт ---------- */
+function init() {
+  call('apiInit', [state.pin], function (c) {
+    APP = c;
+    var sel = $('inStage'); sel.innerHTML = c.stages.map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
+    if (state.stage) sel.value = state.stage;
+    fillReasons();
+    if (!state.user || !state.stage) { openSetup(false); return; }
+    hdr();
+    if (START_ID) openId(START_ID); else home();
+  });
+}
+function hdr() { $('hdrStage').textContent = (state.stage || '—') + (state.user ? ' · ' + state.user : ''); }
+function openSetup(needPin) {
+  ['vHome', 'vPallet', 'vReport'].forEach(function (v) { show(v, false); });
+  show('vSetup', true); show('pinBox', needPin !== false || !state.pin);
+  if (!$('inStage').options.length) call('apiStages', [], function (st) {
+    $('inStage').innerHTML = st.map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
+    if (state.stage) $('inStage').value = state.stage;
+  });
+  if (state.user || !$('inUser').value) $('inUser').value = state.user;
+  if (state.stage) $('inStage').value = state.stage;
+}
+function saveSetup() {
+  var pin = $('pinBox').classList.contains('hide') ? state.pin : val('inPin');
+  var user = val('inUser'), stage = $('inStage').value;
+  if (!user) { toast('Введите имя', false); return; }
+  call('apiInit', [pin], function (c) {
+    APP = c; state.pin = pin; state.user = user; state.stage = stage;
+    ls('c3_pin', pin); ls('c3_user', user); ls('c3_stage', stage);
+    fillReasons(); hdr(); show('vSetup', false);
+    if (START_ID) openId(START_ID); else home();
+  });
+}
+function fillReasons() {
+  var o = APP.reasons.map(function (r) { return '<option>' + esc(r) + '</option>'; }).join('');
+  $('lossReason').innerHTML = '<option value="">— выберите —</option>' + o;
+  $('badReason').innerHTML = '<option value="">— выберите —</option>' + o;
+}
+
+/* ---------- главный экран ---------- */
+function home() {
+  stopScan(); P = null; START_ID = '';
+  show('vPallet', false); show('vSetup', false); show('vReport', false); show('vHome', true); show('hdrHome', false);
+  $('inId').value = ''; $('listTitle').textContent = 'На участке «' + state.stage + '»';
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  loadList();
+}
+function loadList() {
+  $('stageList').innerHTML = '<li class="muted">загрузка…</li>';
+  call('apiStageList', [state.pin, state.stage], function (rows) {
+    if (!rows.length) { $('stageList').innerHTML = '<li class="muted">Паллет нет</li>'; return; }
+    $('stageList').innerHTML = rows.map(function (r) {
+      var st = r.days != null && r.days > APP.staleDays;
+      return '<li onclick="openId(\'' + r.id + '\')"><span><b>' + esc(r.id) + '</b> · ' + esc(r.art) + ' · ' + r.qty + ' шт</span>' +
+             '<span class="' + (st ? 'stale' : 'muted') + '">' + (r.days == null ? '' : r.days + ' дн.') + '</span></li>';
+    }).join('');
+  });
+}
+
+/* ---------- сканирование ---------- */
+function camAllowed() {
+  try {
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.isSecureContext) return false;
+    var fp = document.permissionsPolicy || document.featurePolicy;
+    if (fp && fp.allowsFeature && !fp.allowsFeature('camera')) return false;
+    return true;
+  } catch (e) { return false; }
+}
+/* «Сканировать»: живая камера, если браузер разрешает; иначе — фото кода. */
+function scanStart() {
+  // в Apps Script камеру браузер не даёт — там только фото; на своём сайте (GitHub Pages) — живая камера
+  if (!window.STANDALONE || !camAllowed() || typeof Html5Qrcode === 'undefined') { $('photoQr').click(); return; }
+  show('scanOv', true); show('torchBtn', false);
+  scanner = new Html5Qrcode('reader', { verbose: false });
+  var box = Math.min(280, Math.floor(window.innerWidth * 0.7));
+  scanner.start({ facingMode: 'environment' }, { fps: 12, qrbox: { width: box, height: box }, aspectRatio: window.innerHeight / window.innerWidth },
+    function (text) {
+      var id = extractId(text);
+      if (!id) { toast('Это не QR паллеты', false); return; }
+      try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
+      stopScan();
+      if (pendingScan) { var cb = pendingScan; pendingScan = null; cb(id); } else openId(id);
+    }, function () {})
+    .then(function () {
+      try { var c = scanner.getRunningTrackCameraCapabilities(); if (c && c.torchFeature && c.torchFeature().isSupported()) show('torchBtn', true); } catch (e) {}
+    })
+    .catch(function () { stopScan(); toast('Нет доступа к камере — разрешите камеру для этого сайта или сделайте фото кода', false); });
+}
+var torchOn = false;
+function torch() {
+  try { torchOn = !torchOn; scanner.getRunningTrackCameraCapabilities().torchFeature().apply(torchOn); } catch (e) {}
+}
+function stopScan() {
+  show('scanOv', false); torchOn = false;
+  if (scanner) { var s = scanner; scanner = null; try { s.stop().then(function () { s.clear(); }).catch(function () {}); } catch (e) {} }
+}
+/* Фото кода: уменьшаем снимок, распознаём встроенным детектором телефона (Android Chrome),
+   при неудаче — библиотекой html5-qrcode. Понимает QR и штрихкоды. */
+function shrink(file, max) {
+  return new Promise(function (res) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var k = Math.min(1, max / Math.max(img.width, img.height));
+      var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      c.toBlob(function (b) { res({ canvas: c, file: new File([b], 'qr.jpg', { type: 'image/jpeg' }) }); }, 'image/jpeg', 0.92);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); res({ canvas: null, file: file }); };
+    img.src = url;
+  });
+}
+function detectNative(canvas) {
+  if (!canvas || !('BarcodeDetector' in window)) return Promise.reject();
+  return new window.BarcodeDetector().detect(canvas).then(function (r) { if (r && r.length) return r[0].rawValue; throw 0; });
+}
+function detectLib(file) {
+  if (typeof Html5Qrcode === 'undefined') return Promise.reject();
+  return new Html5Qrcode('readerFile').scanFile(file, false);
+}
+var pendingScan = null;
+function scanInto(cb) { pendingScan = cb; scanStart(); }
+function scanPhoto(inp) {
+  var f = inp.files && inp.files[0]; inp.value = '';
+  if (!f) { pendingScan = null; return; }
+  toast('Распознаю код…', true);
+  shrink(f, 1400).then(function (s1) {
+    return detectNative(s1.canvas)
+      .catch(function () { return detectLib(s1.file); })
+      .catch(function () { return detectLib(f); });
+  }).then(function (text) {
+    var id = extractId(text);
+    if (!id) { toast('Код прочитан, но это не паллета: ' + String(text).slice(0, 40), false); return; }
+    if (pendingScan) { var cb = pendingScan; pendingScan = null; cb(id); } else openId(id);
+  }).catch(function () { toast('Код не распознан — снимите ближе, ровно и при хорошем свете', false); });
+}
+
+/* ---------- карточка ---------- */
+function openId(id) {
+  id = extractId(id) || String(id || '').trim().toUpperCase();
+  if (!id) { toast('Введите номер паллеты', false); return; }
+  show('vHome', false); show('vReport', false); show('vPallet', true); show('hdrHome', true); window.scrollTo(0, 0);
+  $('pId').textContent = id; $('pStatus').textContent = '…'; $('pKv').innerHTML = '<div class="muted">загрузка…</div><div></div>';
+  ['aCast', 'aWork', 'aClosed'].forEach(function (x) { show(x, false); });
+  call('apiGetPallet', [state.pin, id], render, function () { home(); });
+}
+function render(p) {
+  P = p;
+  if (p.notFound && !p.validId) { toast('Паллета ' + p.id + ' не найдена', false); home(); return; }
+  var st = p.notFound ? 'Этикетка' : p.status;
+  var cls = { 'В работе': 'b-work', 'На СГП': 'b-gp', 'Этикетка': 'b-new', 'Отгружена': 'b-closed', 'Списана': 'b-bad', 'На доработке': 'b-bad', 'Объединена': 'b-closed' }[st] || '';
+  $('pId').textContent = p.id; $('pStatus').textContent = st === 'Этикетка' ? 'не залита' : st; $('pStatus').className = 'badge ' + cls;
+  var kv = [];
+  if (p.stage) kv.push(['Участок', '<b>' + esc(p.stage) + '</b>' + (p.days != null ? ' · ' + p.days + ' дн.' : '')]);
+  if (p.art) kv.push(['Изделие', '<b>' + esc(p.art) + '</b> ' + esc(p.artName || '')]);
+  if (p.format) kv.push(['Формат', esc(p.format)]);
+  if (p.art) kv.push(['Количество', '<b>' + p.qty + ' шт</b>' + (p.m2 != null ? ' · ' + p.m2 + ' м²' : '')]);
+  if (p.cast) kv.push(['Залита', esc(p.cast)]);
+  if (p.last) kv.push(['Последнее', esc(p.last)]);
+  if (!kv.length) kv.push(['', 'Паллета ещё не залита']);
+  $('pKv').innerHTML = kv.map(function (r) { return '<div>' + r[0] + '</div><div>' + r[1] + '</div>'; }).join('');
+  $('pHist').innerHTML = (p.history || []).map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') || '<li>—</li>';
+
+  show('aCast', st === 'Этикетка'); show('aWork', st === 'В работе' || st === 'На СГП');
+  show('aClosed', ['Отгружена', 'Списана', 'На доработке', 'Объединена'].indexOf(st) >= 0);
+  if (st === 'Этикетка') { $('firstStage').textContent = APP.stages[0]; $('castFilter').value = ''; $('castQty').value = ''; fillArts(); loadCastPlan(); }
+  if (st === 'В работе' || st === 'На СГП') prepWork(p);
+}
+
+/* ---------- залить ---------- */
+function fillArts() {
+  var q = val('castFilter').toLowerCase();
+  var list = APP.arts.filter(function (a) { return !q || (a.code + ' ' + a.name + ' ' + (a.format || '')).toLowerCase().indexOf(q) >= 0; });
+  $('castArt').innerHTML = list.map(function (a) { return '<option value="' + esc(a.code) + '">' + esc(a.code) + (a.name ? ' — ' + esc(a.name) : '') + (a.format ? ' · ' + esc(a.format) : '') + '</option>'; }).join('');
+  if (list.length === 1) $('castArt').selectedIndex = 0;
+}
+function doCast(btn) {
+  var art = $('castArt').value, q = Number(val('castQty'));
+  if (!art) { toast('Выберите артикул', false); return; }
+  if (!(q > 0)) { toast('Укажите количество', false); return; }
+  act({ op: 'Залито', art: art, qty: q }, btn);
+}
+
+/* ---------- работа ---------- */
+function prepWork(p) {
+  var gp = APP.stages[APP.stages.length - 1];
+  var mine = state.stage && state.stage !== p.stage;
+  show('btnMine', !!mine);
+  $('btnMine').textContent = '✓ Принять на «' + state.stage + '»';
+  $('toGrid').innerHTML = APP.stages.filter(function (s) { return s !== p.stage; }).map(function (s) {
+    return '<button class="' + (s === p.next ? 'next' : '') + '" onclick="pickTo(\'' + esc(s) + '\')">' + esc(s) + (s === p.next ? ' →' : '') + '</button>';
+  }).join('');
+  show('moveForm', false); $('badQty').value = ''; $('badReason').value = ''; decide(false);
+  $('shipTxt').textContent = p.stage === gp ? 'Паллета на складе ГП: ' + p.qty + ' шт ' + p.art + '.' : 'Отгрузка возможна только со склада «' + gp + '». Сейчас паллета на «' + p.stage + '».';
+  $('btnShip').disabled = p.stage !== gp;
+  mReset(p);
+  var onGP = p.stage === gp;
+  show('tMove', !onGP);          // со склада ГП дальше двигать некуда — только отгрузка
+  show('tShip', onGP);           // отгрузка — только со склада ГП
+  tab(onGP ? 'ship' : 'move');
+}
+function tab(t) {
+  ['move', 'bad', 'merge', 'ship'].forEach(function (x) {
+    show('p' + x.charAt(0).toUpperCase() + x.slice(1), x === t);
+    $('t' + x.charAt(0).toUpperCase() + x.slice(1)).classList.toggle('on', x === t);
+  });
+}
+function pickTo(s) {
+  moveTarget = s; $('moveTo').textContent = s; $('goodQty').value = P.qty; toggleLoss();
+  show('moveForm', true); $('moveForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function toggleLoss() {
+  var g = Number(val('goodQty')), loss = P.qty - (isNaN(g) ? P.qty : g);
+  show('lossBox', loss > 0);
+  $('lossTxt').textContent = loss > 0 ? 'Брак при приёмке: ' + loss + ' шт — спишется на участке «' + P.stage + '»' : '';
+}
+function doMove(btn) {
+  var g = val('goodQty'); var gn = g === '' ? P.qty : Number(g);
+  if (isNaN(gn) || gn < 0) { toast('Неверное количество годных', false); return; }
+  if (gn > P.qty) { toast('Годных больше, чем на паллете (' + P.qty + ')', false); return; }
+  if (gn < P.qty && !$('lossReason').value) { toast('Укажите причину брака', false); return; }
+  act({ op: 'Передача', to: moveTarget, good: gn, goodReason: $('lossReason').value }, btn);
+}
+function decide(r) { rework = r; $('dScrap').classList.toggle('on', !r); $('dRework').classList.toggle('on', r); }
+function doBad(btn) {
+  var b = Number(val('badQty'));
+  if (!(b > 0)) { toast('Укажите количество брака', false); return; }
+  if (b > P.qty) { toast('Больше, чем на паллете (' + P.qty + ')', false); return; }
+  if (!$('badReason').value) { toast('Укажите причину', false); return; }
+  act({ op: 'Брак', brQty: b, brReason: $('badReason').value, rework: rework }, btn);
+}
+function doShip(btn) { act({ op: 'Отгрузка' }, btn); }
+
+/* ---------- слияние ---------- */
+var M = { src: [], tgt: [] };
+function mReset(p) {
+  M = { src: [{ id: p.id, qty: p.qty }], tgt: [] };
+  $('mAddId').value = '';
+  $('mReason').innerHTML = $('badReason').innerHTML;
+  mAddTgt(p.id, p.qty);
+}
+function mRender() {
+  $('mSrc').innerHTML = M.src.map(function (s, i) {
+    return '<li><span><b>' + esc(s.id) + '</b> · ' + s.qty + ' шт</span>' +
+      (i ? '<button class="badge" style="border:0" onclick="mDelSrc(' + i + ')">убрать</button>' : '<span class="muted">эта паллета</span>') + '</li>';
+  }).join('');
+  $('mTgt').innerHTML = M.tgt.map(function (t, i) {
+    return '<div class="row" style="margin-top:6px">' +
+      '<input value="' + esc(t.id) + '" placeholder="номер новой наклейки" autocapitalize="characters" oninput="M.tgt[' + i + '].id=this.value" style="flex:1.4">' +
+      '<button class="btn ghost" style="width:auto;margin:0;padding:12px 10px" onclick="scanInto(function(id){M.tgt[' + i + '].id=id;mRender();})">📷</button>' +
+      '<input type="number" inputmode="numeric" min="1" value="' + (t.qty || '') + '" placeholder="шт" oninput="M.tgt[' + i + '].qty=this.value;mSum()" style="flex:.8">' +
+      (M.tgt.length > 1 ? '<button class="badge" style="border:0" onclick="mDelTgt(' + i + ')">✕</button>' : '') + '</div>';
+  }).join('');
+  mSum();
+}
+function mSum() {
+  var a = M.src.reduce(function (x, s) { return x + s.qty; }, 0);
+  var b = M.tgt.reduce(function (x, t) { return x + (Number(t.qty) || 0); }, 0);
+  var d = a - b;
+  $('mSum').innerHTML = 'Было: <b>' + a + '</b> шт · Стало: <b>' + b + '</b> шт' +
+    (d > 0 ? ' · <span style="color:var(--bad)"><b>недостача ' + d + '</b> — уйдёт в брак</span>' : d < 0 ? ' · <span style="color:var(--bad)"><b>больше, чем было</b></span>' : ' · ✓ сходится');
+  show('mLossBox', d > 0);
+}
+function mAddSrc(raw) {
+  var id = extractId(raw);
+  if (!id) { toast('Введите номер паллеты', false); return; }
+  if (M.src.some(function (s) { return s.id === id; })) { toast(id + ' уже добавлена', false); return; }
+  call('apiGetPallet', [state.pin, id], function (p) {
+    if (p.notFound) { toast('Паллета ' + id + ' не найдена', false); return; }
+    if (p.status !== 'В работе' && p.status !== 'На СГП') { toast(id + ': статус «' + p.status + '» — объединять нельзя', false); return; }
+    if (p.stage !== P.stage) { toast(id + ' на участке «' + p.stage + '», а эта — на «' + P.stage + '»', false); return; }
+    if (p.art !== P.art) { toast(id + ': артикул ' + p.art + ', а здесь ' + P.art + ' — разные артикулы не объединяются', false); return; }
+    M.src.push({ id: p.id, qty: p.qty }); $('mAddId').value = '';
+    if (M.tgt.length === 1) M.tgt[0].qty = M.src.reduce(function (x, s) { return x + s.qty; }, 0);
+    mRender(); toast(id + ' добавлена: ' + p.qty + ' шт', true);
+  });
+}
+function mDelSrc(i) { M.src.splice(i, 1); mRender(); }
+function mAddTgt(id, qty) { M.tgt.push({ id: id || '', qty: qty || '' }); mRender(); }
+function mDelTgt(i) { M.tgt.splice(i, 1); mRender(); }
+function doMerge(btn) {
+  var a = M.src.reduce(function (x, s) { return x + s.qty; }, 0);
+  var tg = M.tgt.map(function (t) { return { id: extractId(t.id), qty: Number(t.qty) || 0 }; });
+  if (M.src.length < 2 && tg.length < 2) { toast('Добавьте вторую паллету-источник или ещё одну новую паллету', false); return; }
+  for (var i = 0; i < tg.length; i++) {
+    if (!tg[i].id) { toast('Укажите номер новой паллеты (строка ' + (i + 1) + ')', false); return; }
+    if (!(tg[i].qty > 0)) { toast('Укажите количество для ' + tg[i].id, false); return; }
+  }
+  var b = tg.reduce(function (x, t) { return x + t.qty; }, 0);
+  if (b > a) { toast('На новых паллетах больше, чем было', false); return; }
+  if (b < a && !$('mReason').value) { toast('Укажите причину недостачи', false); return; }
+  busy(btn, true);
+  call('apiRegroup', [state.pin, { sources: M.src.map(function (s) { return s.id; }), targets: tg, reason: $('mReason').value, user: state.user }],
+    function (r) { busy(btn, false); toast(r.message, true); if (r.pallet) render(r.pallet); },
+    function () { busy(btn, false); });
+}
+
+function act(prm, btn) {
+  prm.user = state.user;
+  busy(btn, true);
+  call('apiAction', [state.pin, P.id, prm], function (r) {
+    busy(btn, false); toast(r.message, true);
+    if (r.pallet) render(r.pallet);
+  }, function () { busy(btn, false); });
+}
+
+init();
+</script>
+</body>
+</html>
