@@ -156,8 +156,6 @@
       <div class="muted">Вы вошли как</div>
       <div class="big" style="font-size:22px" id="profName">—</div>
       <label>Мой участок</label><select id="inStage"></select>
-      <label>Оформление</label>
-      <div class="seg"><button id="thEm" onclick="setTheme('em')">Изумрудное</button><button id="thCoal" onclick="setTheme('coal')">Угольное</button></div>
       <button class="btn" onclick="saveStage()">Готово</button>
       <button class="btn ghost" onclick="logout()">Выйти (сменить пользователя)</button>
       <p class="muted" style="text-align:center;margin:12px 0 0">Версия приложения: <b id="verP"></b></p>
@@ -340,7 +338,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '21.10.2026 · 6';
+var APP_VER = '21.10.2026 · 7';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -510,7 +508,6 @@ function setTheme(t) {
   if (t === 'coal') document.documentElement.setAttribute('data-theme', 'coal'); else document.documentElement.removeAttribute('data-theme');
   try { localStorage.setItem('ui_theme', t); } catch (e) {}
   $('metaTheme').setAttribute('content', t === 'coal' ? '#1C1D1F' : '#0B5845');
-  $('thEm').classList.toggle('on', t !== 'coal'); $('thCoal').classList.toggle('on', t === 'coal');
 }
 function toggleTheme() { setTheme(curTheme() === 'coal' ? 'em' : 'coal'); toast(curTheme() === 'coal' ? 'Оформление: угольное' : 'Оформление: изумрудное', true); }
 
