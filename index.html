@@ -108,6 +108,8 @@
   .warnbox{background:var(--warnbg);color:var(--warn);border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px;margin-top:6px}
   .tech{background:#FFFDF6;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
   .tech h4{margin:0 0 2px;font-size:16px} .tech ul{margin:8px 0 0;padding-left:18px} .tech li{margin:3px 0;font-size:15px}
+  .tk{width:100%;border-collapse:collapse;margin-top:8px;font-size:15px} .tk th,.tk td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  .tk th{width:46%;font-weight:600;color:var(--muted);background:var(--bg);font-size:13px;text-transform:uppercase;letter-spacing:.2px} .tk td{font-weight:700} .tk tr.pig td{color:var(--em)}
   .tech .mode{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--chip);font-size:14px}
   .tech a{display:inline-block;margin-top:10px;font-weight:700;color:var(--em)}
   .badgeT{display:inline-block;margin-left:6px;font-size:12px}
@@ -198,7 +200,7 @@
       <input id="castFilter" placeholder="поиск: заказ, контрагент, артикул, цвет" oninput="drawCastPlan()" class="hide">
       <div id="castPlanList"><p class="muted">загрузка задания…</p></div>
       <div id="techBox" class="tech hide"></div>
-      <button class="btn ghost hide" id="btnTech" onclick="toggleTech()">🧪 Техкарта (рецептура)</button>
+      <button class="btn ghost hide" id="btnTech" onclick="toggleTech()">🧪 Техкарта (рецептура замеса)</button>
       <label>Единица измерения</label>
       <div class="seg"><button id="uPcs" class="on" onclick="setUnit('pcs')">Штуки</button><button id="uForm" onclick="setUnit('form')">Формы</button></div>
       <label id="qtyLbl">Количество, шт</label><input id="castQty" type="number" inputmode="numeric" min="1" oninput="qtyHint()">
@@ -338,7 +340,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '21.10.2026 · 5';
+var APP_VER = '21.10.2026 · 6';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -385,7 +387,7 @@ function planRowHtml(x, onclick, sel) {
     '<span class="pa"><b>' + esc(x.art) + '</b>' + (x.color ? ' <span class="clr">' + esc(x.color) + '</span>' : '') +
     (x.name ? '<small>' + esc(x.name) + '</small>' : '') + (sub ? '<small>' + sub + '</small>' : '') +
     (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') +
-    (onclick && (x.tech || x.perMold) ? '<small>' + (x.tech ? '🧪 ' + esc(x.tech.recipe || 'техкарта') : '') + (x.tech && x.perMold ? ' · ' : '') + (x.perMold ? x.perMold + ' шт в форме' : '') + '</small>' : '') + '</span>' +
+    (onclick && (x.tech || x.perMold) ? '<small>' + (x.tech ? '🧪 техкарта ' + esc(x.tech.pigment || '') : '') + (x.tech && x.perMold ? ' · ' : '') + (x.perMold ? x.perMold + ' шт в форме' : '') + '</small>' : '') + '</span>' +
     '<span class="pq' + (done ? ' done' : '') + '">' + n0(x.fact) + (x.plan ? ' / ' + n0(x.plan) : '') + (done ? ' ✓' : '') + '</span></button>';
 }
 var CP = [], castSel = -1;
@@ -442,12 +444,12 @@ function toggleTech() {
   var x = CP[castSel]; if (!x || !x.tech) return;
   var t = x.tech, box = $('techBox');
   if (!box.classList.contains('hide')) { show('techBox', false); return; }
-  box.innerHTML = '<h4>🧪 ' + esc(t.recipe || 'Рецептура') + '</h4>' +
-    '<div class="muted">' + esc(x.art) + (x.color ? ' · цвет ' + esc(x.color) : '') + (t.forArt ? '' : ' · общая для цвета') + '</div>' +
-    (t.parts.length ? '<ul>' + t.parts.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '') +
-    (t.mode ? '<div class="mode">' + esc(t.mode) + '</div>' : '') +
-    (t.note ? '<div class="muted" style="margin-top:6px">' + esc(t.note) + '</div>' : '') +
-    (t.url ? '<a href="' + esc(t.url) + '" target="_blank" rel="noopener">Открыть полную техкарту ↗</a>' : '');
+  var rows = t.parts.map(function (p) { return '<tr><th>' + esc(p.k) + '</th><td>' + esc(p.v) + '</td></tr>'; }).join('') +
+    (t.pigment ? '<tr class="pig"><th>Масса (Пигмент)</th><td>' + esc(t.pigment) + '</td></tr>' : '');
+  box.innerHTML = '<h4>🧪 Техкарта · арт. ' + esc(t.art) + '</h4>' +
+    '<div class="muted">' + esc(t.name || x.name || '') + '</div>' +
+    '<table class="tk">' + rows + '</table>' +
+    (t.note ? '<div class="mode">' + esc(t.note) + '</div>' : '');
   show('techBox', true);
 }
 
