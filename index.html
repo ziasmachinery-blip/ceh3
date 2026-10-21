@@ -78,6 +78,8 @@
   .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
   .pad button{border:0;border-radius:14px;background:var(--chip);font-size:26px;font-weight:700;padding:16px 0;color:var(--ink);font-family:inherit}
   .pad button:active{background:#D3DCE7} .pad button:last-child{background:var(--brand);color:#fff}
+  .clr{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--chip);font-size:12px;font-weight:700;vertical-align:1px}
+  .warnbox{background:var(--warnbg);color:var(--warn);border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px;margin-top:6px}
   .hide{display:none!important}
   .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
   @keyframes s{to{transform:rotate(360deg)}}
@@ -142,12 +144,11 @@
     <!-- новая паллета -->
     <div class="card hide" id="aCast">
       <b>Залить новую паллету</b>
-      <div id="castPlan" class="hide"><label>Сменное задание на сегодня — нажмите, чтобы выбрать артикул</label><div id="castPlanList"></div></div>
-      <label>Артикул</label>
-      <input id="castFilter" placeholder="поиск: артикул, название или формат" oninput="fillArts()">
-      <select id="castArt" size="5" style="margin-top:6px" onchange="drawCastPlan()"></select>
+      <label>Позиция сменного задания на сегодня</label>
+      <input id="castFilter" placeholder="поиск: заказ, контрагент, артикул, цвет" oninput="drawCastPlan()" class="hide">
+      <div id="castPlanList"><p class="muted">загрузка задания…</p></div>
       <label>Количество, шт</label><input id="castQty" type="number" inputmode="numeric" min="1">
-      <button class="btn ok" onclick="doCast(this)">Залита — поставить на «<span id="firstStage"></span>»</button>
+      <button class="btn ok" id="btnCast" onclick="doCast(this)">Залита — поставить на «<span id="firstStage"></span>»</button>
     </div>
 
     <!-- действия с паллетой в работе -->
@@ -306,28 +307,41 @@ function extractId(text) {
 /* ---------- сменное задание в форме заливки ---------- */
 function planRowHtml(x, onclick, sel) {
   var done = x.plan && x.fact >= x.plan;
+  var sub = [x.order ? 'заказ <b>' + esc(x.order) + '</b>' : '', esc(x.client || '')].filter(Boolean).join(' · ');
   return '<button class="pl' + (done ? ' full' : '') + (sel ? ' sel' : '') + '"' + (onclick ? ' onclick="' + onclick + '"' : ' disabled') + '>' +
-    '<span class="pa"><b>' + esc(x.art) + '</b>' + (x.name ? '<small>' + esc(x.name) + '</small>' : '') + (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') + '</span>' +
+    '<span class="pa"><b>' + esc(x.art) + '</b>' + (x.color ? ' <span class="clr">' + esc(x.color) + '</span>' : '') +
+    (x.name ? '<small>' + esc(x.name) + '</small>' : '') + (sub ? '<small>' + sub + '</small>' : '') +
+    (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') + '</span>' +
     '<span class="pq' + (done ? ' done' : '') + '">' + n0(x.fact) + (x.plan ? ' / ' + n0(x.plan) : '') + (done ? ' ✓' : '') + '</span></button>';
 }
-var CP = [];
+var CP = [], castSel = -1;
 function loadCastPlan() {
-  show('castPlan', false);
+  CP = []; castSel = -1; $('btnCast').disabled = true; show('castFilter', false);
+  $('castPlanList').innerHTML = '<p class="muted">загрузка задания…</p>';
   call('apiPlan', [state.pin], function (pl) {
     CP = pl.rows.filter(function (x) { return x.plan > 0; });
-    if (!CP.length) return;
-    drawCastPlan(); show('castPlan', true);
+    if (!CP.length) {
+      $('castPlanList').innerHTML = '<div class="warnbox">На сегодня нет сменного задания.<br>Заливать можно только по заданию — обратитесь к мастеру.</div>';
+      return;
+    }
+    if (CP.length === 1) castSel = 0;
+    show('castFilter', CP.length > 6); drawCastPlan();
   });
 }
 function drawCastPlan() {
-  var cur = $('castArt').value;
-  $('castPlanList').innerHTML = CP.map(function (x, i) { return planRowHtml(x, 'pickPlan(' + i + ')', x.art === cur); }).join('');
+  var q = val('castFilter').toLowerCase();
+  var html = CP.map(function (x, i) {
+    if (q && (x.order + ' ' + x.client + ' ' + x.art + ' ' + x.name + ' ' + x.color).toLowerCase().indexOf(q) < 0 && i !== castSel) return '';
+    return planRowHtml(x, 'pickPlan(' + i + ')', i === castSel);
+  }).join('');
+  $('castPlanList').innerHTML = html || '<p class="muted">ничего не найдено</p>';
+  $('btnCast').disabled = castSel < 0;
 }
 function pickPlan(i) {
-  var x = CP[i]; $('castFilter').value = ''; fillArts();
-  $('castArt').value = x.art;
-  if ($('castArt').value !== x.art) toast('Артикула ' + x.art + ' нет в списке «Выпускается»', false);
-  drawCastPlan(); $('castQty').focus();
+  castSel = i; drawCastPlan();
+  var x = CP[i];
+  if (x.left > 0 && !val('castQty')) $('castQty').placeholder = 'осталось по плану: ' + x.left;
+  $('castQty').focus();
 }
 
 /* ---------- отчёты ---------- */
@@ -362,7 +376,7 @@ function drawShift(r) {
   if (s.plan) html += '<div class="bar ' + (pct > 100 ? 'over' : pct >= 100 ? 'done' : '') + '"><i style="width:' + Math.min(pct, 100) + '%"></i></div>';
   if (!s.hasPlan) html += '<p class="muted" style="margin:10px 0 0">Задание на ' + esc(r.date) + ' не введено — заполните лист «Сменное задание» в таблице.</p>';
   html += s.rows.map(function (x) { return planRowHtml(x, '', false); }).join('');
-  html += '</div><p class="muted" style="margin:0 4px 12px">Выполнение отмечается автоматически, когда паллету заливают по QR-коду.</p>';
+  html += '</div><p class="muted" style="margin:0 4px 12px">Выполнение отмечается автоматически: при заливке оператор выбирает позицию задания (заказ + артикул + цвет).</p>';
   $('rShiftBody').innerHTML = html;
 }
 function drawStock(r) {
@@ -572,6 +586,9 @@ function render(p) {
   if (p.stage) kv.push(['Участок', '<b>' + esc(p.stage) + '</b>' + (p.days != null ? ' · ' + p.days + ' дн.' : '')]);
   if (p.art) kv.push(['Изделие', '<b>' + esc(p.art) + '</b> ' + esc(p.artName || '')]);
   if (p.format) kv.push(['Формат', esc(p.format)]);
+  if (p.color) kv.push(['Цвет', '<b>' + esc(p.color) + '</b>']);
+  if (p.order) kv.push(['Заказ', '<b>' + esc(p.order) + '</b>' + (p.client ? ' · ' + esc(p.client) : '')]);
+  else if (p.client) kv.push(['Контрагент', esc(p.client)]);
   if (p.art) kv.push(['Количество', '<b>' + p.qty + ' шт</b>' + (p.m2 != null ? ' · ' + p.m2 + ' м²' : '')]);
   if (p.cast) kv.push(['Залита', esc(p.cast)]);
   if (p.last) kv.push(['Последнее', esc(p.last)]);
@@ -581,22 +598,16 @@ function render(p) {
 
   show('aCast', st === 'Этикетка'); show('aWork', st === 'В работе' || st === 'На СГП');
   show('aClosed', ['Отгружена', 'Списана', 'На доработке', 'Объединена'].indexOf(st) >= 0);
-  if (st === 'Этикетка') { $('firstStage').textContent = APP.stages[0]; $('castFilter').value = ''; $('castQty').value = ''; fillArts(); loadCastPlan(); }
+  if (st === 'Этикетка') { $('firstStage').textContent = APP.stages[0]; $('castFilter').value = ''; $('castQty').value = ''; loadCastPlan(); }
   if (st === 'В работе' || st === 'На СГП') prepWork(p);
 }
 
 /* ---------- залить ---------- */
-function fillArts() {
-  var q = val('castFilter').toLowerCase();
-  var list = APP.arts.filter(function (a) { return !q || (a.code + ' ' + a.name + ' ' + (a.format || '')).toLowerCase().indexOf(q) >= 0; });
-  $('castArt').innerHTML = list.map(function (a) { return '<option value="' + esc(a.code) + '">' + esc(a.code) + (a.name ? ' — ' + esc(a.name) : '') + (a.format ? ' · ' + esc(a.format) : '') + '</option>'; }).join('');
-  if (list.length === 1) $('castArt').selectedIndex = 0;
-}
 function doCast(btn) {
-  var art = $('castArt').value, q = Number(val('castQty'));
-  if (!art) { toast('Выберите артикул', false); return; }
+  var x = CP[castSel], q = Number(val('castQty'));
+  if (!x) { toast('Выберите позицию сменного задания', false); return; }
   if (!(q > 0)) { toast('Укажите количество', false); return; }
-  act({ op: 'Залито', art: art, qty: q }, btn);
+  act({ op: 'Залито', art: x.art, qty: q, line: { order: x.order, art: x.art, color: x.color } }, btn);
 }
 
 /* ---------- работа ---------- */
