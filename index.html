@@ -389,7 +389,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '21.10.2026 · 12';
+var APP_VER = '21.10.2026 · 13';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -499,6 +499,20 @@ function qtyHint() {
   if (x && UNIT === 'form') h = x.perMold + ' шт в форме' + (n ? ' → <b style="color:var(--ink)">' + n * x.perMold + ' шт</b>' : '');
   if (x && x.left > 0) h += (h ? ' · ' : '') + 'осталось по плану ' + (x.perMold ? '<b style="color:var(--ink)">' + Math.ceil(x.left / x.perMold) + ' форм</b> (' + x.left + ' шт)' : x.left + ' шт');
   $('qtyHint').innerHTML = h;
+}
+/* техкарта по строке отчёта «Задание заливки» */
+var RS = [];
+function repTech(i) {
+  var x = RS[i], box = $('rt' + i);
+  if (!box.classList.contains('hide')) { box.classList.add('hide'); return; }
+  box.innerHTML = x.tech ? techHtml(x.tech, x) : '<div class="muted">Для ' + esc(x.art) + (x.color ? ' / ' + esc(x.color) : '') + ' техкарты нет — заполните лист «Техкарты».</div>';
+  box.classList.remove('hide');
+}
+function techHtml(t, x) {
+  var rows = t.parts.map(function (p) { return '<tr><th>' + esc(p.k) + '</th><td>' + esc(p.v) + '</td></tr>'; }).join('') +
+    (t.pigment ? '<tr class="pig"><th>Масса (Пигмент)</th><td>' + esc(t.pigment) + '</td></tr>' : '');
+  return '<h4>🧪 Техкарта · арт. ' + esc(t.art) + '</h4><div class="muted">' + esc(t.name || x.name || '') + '</div>' +
+    '<table class="tk">' + rows + '</table>' + (t.note ? '<div class="mode">' + esc(t.note) + '</div>' : '');
 }
 function toggleTech() {
   var x = CP[castSel]; if (!x || !x.tech) return;
@@ -679,7 +693,8 @@ function drawShift(r) {
       return pf ? '<div class="muted">в формах: <b style="color:var(--ink)">' + fr(ff) + '</b> из ' + pf + '</div>' : ''; })();
   if (s.plan) html += '<div class="bar ' + (pct > 100 ? 'over' : pct >= 100 ? 'done' : '') + '"><i style="width:' + Math.min(pct, 100) + '%"></i></div>';
   if (!s.hasPlan) html += '<p class="muted" style="margin:10px 0 0">Задание на ' + esc(r.date) + ' не введено — заполните лист «Сменное задание» в таблице.</p>';
-  html += s.rows.map(function (x) { return planRowHtml(x, '', false); }).join('');
+  RS = s.rows;
+  html += s.rows.map(function (x, i) { return planRowHtml(x, 'repTech(' + i + ')', false) + '<div class="tech hide" id="rt' + i + '"></div>'; }).join('');
   html += '</div><p class="muted" style="margin:0 4px 12px">Выполнение отмечается автоматически: при заливке оператор выбирает позицию задания (заказ + артикул + цвет).</p>';
   $('rShiftBody').innerHTML = html;
 }
@@ -694,7 +709,7 @@ function drawStock(r) {
       (s.zone && s.zone.total ? '<div style="margin-top:4px"><span class="zone ready">✓ готово ' + (s.zone.total - s.zone.wait) + '</span> <span class="zone wait">⏳ выдерживается ' + s.zone.wait + '</span></div>' : '') + '</div>' +
       '<div class="sq">' + n0(s.qty) + '</div><span class="muted">шт</span></div>' +
       '<ul class="rl hide" id="sa' + i + '">' + (s.arts.map(function (a) {
-        return '<li><div class="r1"><span><b>' + esc(a.art) + '</b>' + (a.name ? ' · ' + esc(a.name) : '') + '</span><span class="num">' + n0(a.qty) + '</span></div></li>';
+        return '<li><div class="r1"><span><b>' + esc(a.art) + '</b>' + (a.color ? ' <span class="clr">' + esc(a.color) + '</span>' : '') + (a.name ? ' · ' + esc(a.name) : '') + '</span><span class="num">' + n0(a.qty) + '</span></div></li>';
       }).join('') || '<li class="muted">пусто</li>') + '</ul></div>';
   }).join('') + '<p class="muted" style="margin:0 4px 12px">Нажмите на участок, чтобы увидеть артикулы. Показатели «за день» — за ' + esc(r.date) + '.</p>';
 }
