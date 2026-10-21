@@ -113,6 +113,12 @@
   .tech .mode{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--chip);font-size:14px}
   .tech a{display:inline-block;margin-top:10px;font-weight:700;color:var(--em)}
   .badgeT{display:inline-block;margin-left:6px;font-size:12px}
+  @media (max-width:360px){
+    header{padding:7px 10px;gap:6px} header .logo{height:30px} .wsBtn{padding:6px 9px;font-size:13px} .thBtn{width:34px;height:34px}
+    main{padding:8px} .card{padding:11px;border-radius:12px;margin-bottom:8px} .tile{min-height:92px;font-size:17px} .tile .ti{font-size:28px}
+    .btn{padding:13px 10px;font-size:16px} .big{font-size:22px} .kv{font-size:14px} .tabs button{font-size:13px;padding:9px 2px}
+    .sub{padding:5px 8px;min-height:36px} .sub .ttl{font-size:11px} .grid button{padding:12px 6px;font-size:14px}
+  }
   .hide{display:none!important}
   .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
   @keyframes s{to{transform:rotate(360deg)}}
@@ -338,7 +344,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '21.10.2026 · 7';
+var APP_VER = '21.10.2026 · 9';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -386,13 +392,21 @@ function planRowHtml(x, onclick, sel) {
     (x.name ? '<small>' + esc(x.name) + '</small>' : '') + (sub ? '<small>' + sub + '</small>' : '') +
     (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') +
     (onclick && (x.tech || x.perMold) ? '<small>' + (x.tech ? '🧪 техкарта ' + esc(x.tech.pigment || '') : '') + (x.tech && x.perMold ? ' · ' : '') + (x.perMold ? x.perMold + ' шт в форме' : '') + '</small>' : '') + '</span>' +
-    '<span class="pq' + (done ? ' done' : '') + '">' + n0(x.fact) + (x.plan ? ' / ' + n0(x.plan) : '') + (done ? ' ✓' : '') + '</span></button>';
+    '<span class="pq' + (done ? ' done' : '') + '">' + qtyTxt(x) + (done ? ' ✓' : '') + '</span></button>';
+}
+/* план в формах: «4 / 10 форм» крупно и «48 / 120 шт» мелко; без форм — только штуки */
+function fr(v) { return Math.round(v * 10) / 10; }
+function qtyTxt(x) {
+  if (x.forms && x.perMold) return fr(x.fact / x.perMold) + ' / ' + x.forms + ' <span style="font-size:.75em">форм</span>' +
+    '<small style="display:block;font-weight:600;color:var(--muted);font-size:12px">' + n0(x.fact) + ' / ' + n0(x.plan) + ' шт</small>';
+  if (x.forms) return '— / ' + x.forms + ' <span style="font-size:.75em">форм</span><small style="display:block;font-weight:600;color:var(--bad);font-size:12px">нет «Шт в форме»</small>';
+  return n0(x.fact) + (x.plan ? ' / ' + n0(x.plan) : '') + (x.plan ? ' <span style="font-size:.75em">шт</span>' : '');
 }
 var CP = [], castSel = -1;
-function loadCastPlan() {
+function loadCastPlan(given) {
   CP = []; castSel = -1; $('btnCast').disabled = true; show('castFilter', false); show('btnTech', false); show('techBox', false); $('qtyHint').innerHTML = '';
   $('castPlanList').innerHTML = '<p class="muted">загрузка задания…</p>';
-  call('apiPlan', [state.pin], function (pl) {
+  var got = function (pl) {
     CP = pl.rows.filter(function (x) { return x.plan > 0; });
     if (!CP.length) {
       $('castPlanList').innerHTML = '<div class="warnbox">На сегодня нет сменного задания.<br>Заливать можно только по заданию — обратитесь к мастеру.</div>';
@@ -400,7 +414,8 @@ function loadCastPlan() {
     }
     show('castFilter', CP.length > 6); drawCastPlan();
     if (CP.length === 1) pickPlan(0); else setUnit(UNIT);
-  });
+  };
+  if (given) got(given); else call('apiPlan', [state.pin], got);   // задание обычно приходит вместе с карточкой паллеты
 }
 function drawCastPlan() {
   var q = val('castFilter').toLowerCase();
@@ -416,7 +431,8 @@ function pickPlan(i) {
   var x = CP[i];
   show('btnTech', !!x.tech); show('techBox', false);
   $('uForm').disabled = !x.perMold;
-  if (!x.perMold && UNIT === 'form') setUnit('pcs'); else setUnit(UNIT);
+  if (x.forms && x.perMold) setUnit('form');                 // задание в формах → и заливаем в формах
+  else if (!x.perMold && UNIT === 'form') setUnit('pcs'); else setUnit(UNIT);
   $('castQty').focus();
 }
 var UNIT = ls('cast_unit') === 'form' ? 'form' : 'pcs';
@@ -435,7 +451,7 @@ function castPcs() {
 function qtyHint() {
   var x = CP[castSel], n = Number(val('castQty')) || 0, h = '';
   if (x && UNIT === 'form') h = x.perMold + ' шт в форме' + (n ? ' → <b style="color:var(--ink)">' + n * x.perMold + ' шт</b>' : '');
-  if (x && x.left > 0) h += (h ? ' · ' : '') + 'осталось по плану ' + x.left + ' шт' + (x.perMold ? ' (≈ ' + Math.ceil(x.left / x.perMold) + ' форм)' : '');
+  if (x && x.left > 0) h += (h ? ' · ' : '') + 'осталось по плану ' + (x.perMold ? '<b style="color:var(--ink)">' + Math.ceil(x.left / x.perMold) + ' форм</b> (' + x.left + ' шт)' : x.left + ' шт');
   $('qtyHint').innerHTML = h;
 }
 function toggleTech() {
@@ -479,7 +495,9 @@ function drawShift(r) {
   html += '<div class="card"><div class="sh-h"><b>' + esc(s.stage) + '</b>' +
     (pct == null ? '<span class="muted">' + (s.fact ? 'без задания' : '—') + '</span>' : '<span class="pct ' + (pct >= 100 ? 'done' : '') + '">' + pct + '%</span>') + '</div>' +
     '<div class="muted"><span class="num" style="color:var(--ink)">' + n0(s.fact) + '</span>' + (s.plan ? ' из ' + n0(s.plan) : '') + ' шт залито' +
-    (s.plan && s.fact < s.plan ? ' · осталось <b style="color:var(--ink)">' + n0(s.plan - s.fact) + '</b>' : '') + '</div>';
+    (s.plan && s.fact < s.plan ? ' · осталось <b style="color:var(--ink)">' + n0(s.plan - s.fact) + '</b>' : '') + '</div>' +
+    (function () { var pf = 0, ff = 0; s.rows.forEach(function (x) { if (x.forms && x.perMold) { pf += x.forms; ff += x.fact / x.perMold; } });
+      return pf ? '<div class="muted">в формах: <b style="color:var(--ink)">' + fr(ff) + '</b> из ' + pf + '</div>' : ''; })();
   if (s.plan) html += '<div class="bar ' + (pct > 100 ? 'over' : pct >= 100 ? 'done' : '') + '"><i style="width:' + Math.min(pct, 100) + '%"></i></div>';
   if (!s.hasPlan) html += '<p class="muted" style="margin:10px 0 0">Задание на ' + esc(r.date) + ' не введено — заполните лист «Сменное задание» в таблице.</p>';
   html += s.rows.map(function (x) { return planRowHtml(x, '', false); }).join('');
@@ -510,6 +528,35 @@ function setTheme(t) {
   $('metaTheme').setAttribute('content', t === 'coal' ? '#1C1D1F' : '#0B5845');
 }
 function toggleTheme() { setTheme(curTheme() === 'coal' ? 'em' : 'coal'); toast(curTheme() === 'coal' ? 'Оформление: угольное' : 'Оформление: изумрудное', true); }
+
+
+/* ---------- аппаратный сканер (ТСД, Bluetooth-сканер): режим «эмуляция клавиатуры» + Enter ----------
+   Сканер «печатает» код очень быстро (< 50 мс между символами) и жмёт Enter. Ловим такой поток на любом экране,
+   даже если курсор не стоит в поле ввода. Медленный ручной ввод не трогаем. */
+var WEDGE = { buf: '', t: 0, fast: 0 };
+document.addEventListener('keydown', function (e) {
+  var el = document.activeElement, tag = el && el.tagName;
+  var inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  var now = Date.now(), gap = now - WEDGE.t;
+  if (e.key === 'Enter') {
+    var code = WEDGE.buf; var fast = WEDGE.fast >= Math.max(3, code.length - 2);
+    WEDGE.buf = ''; WEDGE.fast = 0;
+    if (code.length >= 3 && fast && extractId(code)) {
+      if (inField && el.id === 'inId') return;               // поле «Номер паллеты» обработает само
+      e.preventDefault();
+      if (inField && el.value && el.value.slice(-code.length) === code) el.value = el.value.slice(0, -code.length);
+      if (!$('scanOv').classList.contains('hide')) stopScan();
+      var cb = pendingScan; pendingScan = null;
+      try { navigator.vibrate && navigator.vibrate(60); } catch (x) {}
+      handleCode(code, cb);
+    }
+    return;
+  }
+  if (e.key.length !== 1) return;
+  if (gap > 300) { WEDGE.buf = ''; WEDGE.fast = 0; }
+  if (WEDGE.buf && gap < 50) WEDGE.fast++;
+  WEDGE.buf += e.key; WEDGE.t = now;
+}, true);
 
 /* ---------- старт ---------- */
 function init() {
@@ -644,16 +691,21 @@ function home() {
   try { history.replaceState(null, '', location.pathname); } catch (e) {}
   loadList();
 }
+var LIST_CACHE = {};
 function loadList() {
-  $('stageList').innerHTML = '<li class="muted">загрузка…</li>';
-  call('apiStageList', [state.pin, state.stage], function (rows) {
+  var k = (WS ? WS.id : '') + '|' + state.stage;
+  if (LIST_CACHE[k]) drawList(LIST_CACHE[k]); else $('stageList').innerHTML = '<li class="muted">загрузка…</li>';
+  call('apiStageList', [state.pin, state.stage], function (rows) { LIST_CACHE[k] = rows; drawList(rows); });
+}
+function drawList(rows) {
+  {
     if (!rows.length) { $('stageList').innerHTML = '<li class="muted">Паллет нет</li>'; return; }
     $('stageList').innerHTML = rows.map(function (r) {
       var st = r.days != null && r.days > APP.staleDays;
       return '<li onclick="openId(\'' + r.id + '\')"><span><b>' + esc(r.id) + '</b> · ' + esc(r.art) + ' · ' + r.qty + ' шт</span>' +
              '<span class="' + (st ? 'stale' : 'muted') + '">' + (r.days == null ? '' : r.days + ' дн.') + '</span></li>';
     }).join('');
-  });
+  }
 }
 
 /* ---------- сканирование ---------- */
@@ -762,7 +814,7 @@ function render(p) {
 
   show('aCast', st === 'Этикетка'); show('aWork', st === 'В работе' || st === 'На СГП');
   show('aClosed', ['Отгружена', 'Списана', 'На доработке', 'Объединена'].indexOf(st) >= 0);
-  if (st === 'Этикетка') { $('firstStage').textContent = APP.stages[0]; $('castFilter').value = ''; $('castQty').value = ''; loadCastPlan(); }
+  if (st === 'Этикетка') { $('firstStage').textContent = APP.stages[0]; $('castFilter').value = ''; $('castQty').value = ''; loadCastPlan(p.plan); }
   if (st === 'В работе' || st === 'На СГП') prepWork(p);
 }
 
