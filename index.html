@@ -67,7 +67,7 @@
   .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:10px;font-size:15px}
   .kv div:nth-child(odd){color:var(--muted)}
   .hist{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--muted)} .hist li{margin:3px 0}
-  .tabs{display:flex;gap:6px;margin-top:12px} .tabs button{flex:1;border:0;border-radius:10px;padding:10px 4px;font-size:14px;font-weight:700;background:var(--chip);color:var(--ink)}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px} .tabs button{min-width:30%} .tabs button{flex:1;border:0;border-radius:10px;padding:10px 4px;font-size:14px;font-weight:700;background:var(--chip);color:var(--ink)}
   .tabs button.on{background:var(--ink);color:#fff}
   .seg{display:flex;gap:6px;margin-top:6px} .seg button{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:11px 6px;font-size:14px;font-weight:600}
   .seg button.on{border-color:var(--ink);background:var(--ink);color:#fff}
@@ -119,6 +119,14 @@
     .btn{padding:13px 10px;font-size:16px} .big{font-size:22px} .kv{font-size:14px} .tabs button{font-size:13px;padding:9px 2px}
     .sub{padding:5px 8px;min-height:36px} .sub .ttl{font-size:11px} .grid button{padding:12px 6px;font-size:14px}
   }
+  .mylast{border:1.5px dashed var(--line);background:var(--bg)} .mylast .row{gap:8px;margin-top:8px} .mylast .row .btn{margin:0;padding:11px 8px;font-size:15px}
+  .act{display:block} .act .t{font-size:12px;color:var(--muted)} .act .x{font-size:14px;margin:4px 0 0}
+  .act.off{opacity:.55} .act .why{font-size:12px;color:var(--warn);margin-top:6px}
+  .packsum{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--bg);font-size:15px;line-height:1.45}
+  .confirmbox{border:2px solid var(--warn);background:var(--warnbg);color:#5A3A00;font-weight:600;margin-top:10px}
+  .zone{display:inline-block;padding:3px 9px;border-radius:99px;font-size:13px;font-weight:800} .zone.wait{background:var(--warnbg);color:var(--warn)} .zone.ready{background:var(--okbg);color:var(--ok)}
+  .strgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px} .strgrid input{padding:10px 4px;text-align:center;font-size:17px}
+  .strgrid input.ok{border-color:var(--em);background:var(--emLight)}
   .hide{display:none!important}
   .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
   @keyframes s{to{transform:rotate(360deg)}}
@@ -174,6 +182,7 @@
       <button class="tile t-scan" onclick="scanStart()"><span class="ti">📷</span>Сканировать</button>
       <button class="tile t-rep" onclick="openReport()"><span class="ti">📊</span>Отчёты</button>
     </div>
+    <button class="btn ghost" style="margin:0 0 12px" onclick="openMine()">🕘 Мои действия — отменить или исправить</button>
     <input id="photoQr" type="file" accept="image/*" capture="environment" class="hide" onchange="scanPhoto(this)">
     <div id="readerFile" class="hide"></div>
     <div class="card">
@@ -198,6 +207,7 @@
     </div>
 
     <!-- новая паллета -->
+    <div class="card hide mylast" id="myLast"></div>
     <div class="card hide" id="aCast">
       <b>Залить новую паллету</b>
       <label>Позиция сменного задания на сегодня</label>
@@ -214,8 +224,11 @@
 
     <!-- действия с паллетой в работе -->
     <div class="hide" id="aWork">
+      <div class="card hide confirmbox" id="confirmBox"><div id="confirmTxt"></div>
+        <div class="row" style="gap:8px;margin-top:10px"><button class="btn ghost" style="margin:0" onclick="show('confirmBox', false)">Отмена</button>
+        <button class="btn warn" style="margin:0" id="confirmGo">Всё равно</button></div></div>
       <p class="muted" style="margin:12px 2px 0">Что сделать с паллетой:</p>
-      <div class="tabs" style="margin-top:6px"><button id="tMove" class="on" onclick="tab('move')">Переместить</button><button id="tBad" onclick="tab('bad')">Брак</button><button id="tMerge" onclick="tab('merge')">Слияние</button><button id="tShip" onclick="tab('ship')">Отгрузить</button></div>
+      <div class="tabs" style="margin-top:6px"><button id="tMove" class="on" onclick="tab('move')">Переместить</button><button id="tBad" onclick="tab('bad')">Брак</button><button id="tMerge" onclick="tab('merge')">Слияние</button><button id="tShip" onclick="tab('ship')">Отгрузить</button><button id="tPack" onclick="tab('pack')">📦 Упаковать</button><button id="tPlace" onclick="tab('place')">📍 Разместить</button><button id="tStr" onclick="tab('str')">🔨 Прочность</button></div>
 
       <div class="card" id="pMove" style="margin-top:8px">
         <button class="btn ok" id="btnMine" onclick="pickTo(state.stage)"></button>
@@ -257,6 +270,30 @@
         <button class="btn ok" onclick="doMerge(this)">Подтвердить слияние</button>
       </div>
 
+      <div class="card hide" id="pPack" style="margin-top:8px">
+        <div class="muted" id="packNow"></div>
+        <label>Изделий в коробке, шт</label><input id="perBox" type="number" inputmode="numeric" min="1" oninput="packCalc()">
+        <label>Вес изделия, кг <span class="muted">(из справочника, можно поправить)</span></label><input id="itemW" type="number" inputmode="decimal" step="0.01" min="0" oninput="packCalc()">
+        <div class="packsum" id="packSum"></div>
+        <label>Вес паллеты по весам, кг <span class="muted">(необязательно)</span></label><input id="palWeight" type="number" inputmode="decimal" step="0.1" min="0">
+        <button class="btn ok" onclick="doPack(this)">📦 Упакована</button>
+      </div>
+
+      <div class="card hide" id="pPlace" style="margin-top:8px">
+        <div class="muted" id="placeNow"></div>
+        <label>Адрес (сектор / секция) — выберите или отсканируйте табличку</label>
+        <div class="row"><select id="addrSel"></select><button class="btn ghost" style="width:auto;margin:0;padding:12px 14px" onclick="scanAddr()">📷</button></div>
+        <button class="btn ok" onclick="doPlace(this)">📍 Разместить</button>
+      </div>
+
+      <div class="card hide" id="pStr" style="margin-top:8px">
+        <div class="muted" id="strNow"></div>
+        <label>Показания склерометра, МПа — от 5 до 10 замеров (Enter — к следующему полю)</label>
+        <div class="strgrid" id="strGrid"></div>
+        <div class="packsum" id="strSum"></div>
+        <button class="btn ok" onclick="doStr(this)">🔨 Зафиксировать прочность</button>
+      </div>
+
       <div class="card hide" id="pShip" style="margin-top:8px">
         <p id="shipTxt" class="muted"></p>
         <button class="btn warn" id="btnShip" onclick="doShip(this)">Отгружена со склада</button>
@@ -266,6 +303,14 @@
     <div class="card hide" id="aClosed"><b>Паллета закрыта.</b> <span class="muted">Действия недоступны.</span></div>
 
     <button class="btn" onclick="home()">⌂ На главную — сканировать новый код</button>
+  </section>
+
+  <!-- Мои действия -->
+  <section id="vMine" class="hide">
+    <div class="card"><b style="font-size:18px">Мои действия за 24 часа</b>
+      <p class="muted" style="margin:4px 0 0">Отменить или исправить можно только своё действие и только пока с паллетой никто не работал после вас. «Исправить» = отменить и сразу сделать заново.</p></div>
+    <div id="mineList"><div class="card muted">загрузка…</div></div>
+    <button class="btn ghost" onclick="home()">⌂ На главную</button>
   </section>
 
   <!-- Отчёты -->
@@ -344,7 +389,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '21.10.2026 · 9';
+var APP_VER = '21.10.2026 · 12';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -368,6 +413,7 @@ function busy(btn, on) { if (!btn) return; if (on) { btn._t = btn.innerHTML; btn
 function call(fn, args, ok, fail) {
   var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function (e) {
     var m = (e && e.message) || String(e);
+    if (/CONFIRM\|/.test(m)) { fail && fail(m); return; }
     if (/(^|:\s*)PIN$/.test(m)) { state.pin = ''; ls(wk('pin'), ''); openLogin(); toast('Неверный PIN-код или доступ закрыт', false); }
     else toast(m.replace(/^(Error|Exception):\s*/, ''), false);
     fail && fail(m);
@@ -467,12 +513,145 @@ function toggleTech() {
   show('techBox', true);
 }
 
+
+
+
+/* ---------- прочность бетона (склерометр): 5–10 замеров → среднее на паллету ---------- */
+function prepStr(p) {
+  var h = '';
+  for (var i = 0; i < 10; i++) h += '<input type="number" inputmode="decimal" step="0.1" min="0" placeholder="' + (i + 1) + '" oninput="strCalc()" onkeydown="strKey(event,' + i + ')">';
+  $('strGrid').innerHTML = h;
+  $('strNow').innerHTML = p.strength ? 'Сейчас: <b>' + String(p.strength).replace('.', ',') + ' МПа</b> (' + esc(p.strengthInfo) + '). Новые замеры заменят среднее.' : 'Замеров ещё не было.';
+  strCalc();
+}
+function strVals() {
+  return [].slice.call($('strGrid').querySelectorAll('input')).map(function (x) { return Number(String(x.value).replace(',', '.')); }).filter(function (x) { return x > 0; });
+}
+function strKey(e, i) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  var ins = $('strGrid').querySelectorAll('input');
+  if (i < ins.length - 1) ins[i + 1].focus(); else ins[i].blur();
+}
+function strCalc() {
+  [].slice.call($('strGrid').querySelectorAll('input')).forEach(function (x) { x.classList.toggle('ok', Number(x.value) > 0); });
+  var v = strVals(), n = v.length;
+  if (!n) { $('strSum').innerHTML = '<span class="muted">введите показания — среднее посчитается само</span>'; return; }
+  var avg = Math.round(v.reduce(function (a, b) { return a + b; }, 0) / n * 10) / 10;
+  $('strSum').innerHTML = 'Замеров: <b>' + n + '</b>' + (n < 5 ? ' <span style="color:var(--warn)">(нужно ещё ' + (5 - n) + ')</span>' : '') +
+    '<br>Среднее: <b style="font-size:20px">' + String(avg).replace('.', ',') + ' МПа</b> <span class="muted">(мин ' + Math.min.apply(null, v) + ', макс ' + Math.max.apply(null, v) + ')</span>';
+}
+function doStr(btn) {
+  var v = strVals();
+  if (v.length < 5) { toast('Нужно не меньше 5 замеров', false); return; }
+  if (v.length > 10) { toast('Не больше 10 замеров', false); return; }
+  act({ op: 'Прочность', vals: v }, btn);
+}
+
+/* ---------- упаковка, адресное хранение, зона набора прочности ---------- */
+function hh(h) { h = Math.max(0, Math.floor(h)); var d = Math.floor(h / 24), r = h % 24; return (d ? d + ' д ' : '') + r + ' ч'; }
+function prepPack(p) {
+  $('perBox').value = p.perBox || p.artPerBox || '';
+  $('itemW').value = p.itemW || p.artW || '';
+  $('palWeight').value = '';
+  $('packNow').innerHTML = p.boxes ? 'Сейчас: ' + p.boxes + ' кор. × ' + p.perBox + ' шт' + (p.palW ? ', ' + p.palW + ' кг' : '') + ' — можно пересчитать' : 'На паллете <b>' + p.qty + ' шт</b>. Разложите по коробкам:';
+  packCalc();
+}
+function packCalc() {
+  if (!P) return;
+  var per = Number(val('perBox')) || 0, w = Number(String(val('itemW')).replace(',', '.')) || 0, q = P.qty;
+  if (per <= 0) { $('packSum').innerHTML = '<span class="muted">укажите, сколько изделий в коробке</span>'; return; }
+  var boxes = Math.ceil(q / per), last = q - per * (boxes - 1);
+  var wt = w ? Math.round((q * w + boxes * (APP.boxW || 0.3) + (APP.palletW || 25)) * 10) / 10 : 0;
+  $('packSum').innerHTML = '<b>' + q + ' шт</b> = <b>' + boxes + ' кор.</b> × ' + per + ' шт' + (last !== per ? ' <span class="muted">(последняя коробка ' + last + ' шт)</span>' : '') +
+    (wt ? '<br>Вес паллеты ≈ <b>' + wt + ' кг</b> <span class="muted">(изделия ' + Math.round(q * w * 10) / 10 + ' кг + коробки + поддон)</span>' : '');
+}
+function doPack(btn) {
+  var per = Number(val('perBox'));
+  if (!(per > 0)) { toast('Укажите, сколько изделий в коробке', false); return; }
+  act({ op: 'Упаковка', perBox: per, itemW: val('itemW'), weight: val('palWeight') }, btn);
+}
+function prepPlace(p) {
+  var list = (APP.addrs || []);
+  $('addrSel').innerHTML = '<option value="">— выберите адрес —</option>' + list.map(function (a) { return '<option' + (a === p.addr ? ' selected' : '') + '>' + esc(a) + '</option>'; }).join('');
+  $('placeNow').innerHTML = p.addr ? 'Сейчас: <b>📍 ' + esc(p.addr) + '</b>' : 'Паллета пока без адреса';
+  if (!list.length) $('placeNow').innerHTML += '<br><span style="color:var(--warn)">Справочник адресов пуст — мастеру: Меню → «📍 Адреса хранения: настроить»</span>';
+}
+function doPlace(btn) {
+  var a = $('addrSel').value;
+  if (!a) { toast('Выберите адрес или отсканируйте табличку', false); return; }
+  act({ op: 'Размещение', addr: a }, btn);
+}
+function isAddr(t) { return /^ADDR:/i.test(String(t || '').trim()); }
+function scanAddr() { pendingScan = function () {}; pendingAddr = true; scanStart(); }
+var pendingAddr = false;
+/* табличка адреса: в панели «Разместить» — подставить; на главном — показать паллеты на адресе */
+function handleAddr(text) {
+  var a = String(text).trim().replace(/^ADDR:/i, '').toUpperCase();
+  pendingScan = null;
+  if (P && !$('pPlace').classList.contains('hide') && !$('vPallet').classList.contains('hide')) {
+    if (![].slice.call($('addrSel').options).some(function (o) { return o.value === a; })) $('addrSel').insertAdjacentHTML('beforeend', '<option>' + esc(a) + '</option>');
+    $('addrSel').value = a; pendingAddr = false; toast('Адрес ' + a + ' — нажмите «Разместить»', true); return;
+  }
+  pendingAddr = false;
+  call('apiAddrList', [state.pin, a], function (r) {
+    show('vPallet', false); show('vReport', false); show('vMine', false); show('vHome', true); show('hdrHome', true);
+    $('listTitle').textContent = '📍 На адресе ' + r.addr;
+    $('stageList').innerHTML = r.rows.length ? r.rows.map(function (x) {
+      return '<li onclick="openId(\'' + x.id + '\')"><span><b>' + esc(x.id) + '</b> · ' + esc(x.art) + (x.color ? ' ' + esc(x.color) : '') + ' · ' + x.qty + ' шт' + (x.boxes ? ' · ' + x.boxes + ' кор.' : '') + '</span><span class="muted">' + esc(x.order) + '</span></li>';
+    }).join('') : '<li class="muted">На этом адресе паллет нет</li>';
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+}
+
+/* ---------- отмена / исправление своих действий ---------- */
+function drawMyLast(p) {
+  var m = p && p.myLast;
+  if (!m || !m.id) { show('myLast', false); return; }
+  $('myLast').innerHTML = '<div class="muted">Ваше последнее действие · ' + esc(m.time) + '</div><div style="font-size:14px;margin-top:2px">' + esc(m.text) + '</div>' +
+    '<div class="row"><button class="btn ghost" onclick="undoAct(\'' + m.id + '\', false, this)">↩ Отменить</button>' +
+    '<button class="btn" onclick="undoAct(\'' + m.id + '\', true, this)">✎ Исправить</button></div>';
+  show('myLast', true);
+}
+function undoAct(id, redo, btn) {
+  if (!btn._armed) {                       // второе нажатие — подтверждение (без всплывающих окон)
+    btn._armed = true; var t = btn.innerHTML; btn.innerHTML = 'Точно? Нажмите ещё раз';
+    setTimeout(function () { btn._armed = false; btn.innerHTML = t; }, 4000); return;
+  }
+  busy(btn, true);
+  call('apiUndo', [state.pin, id], function (r) {
+    busy(btn, false);
+    toast(r.message + (redo ? '. Сделайте действие заново' : ''), true);
+    if (r.pallet) { show('vMine', false); show('vHome', false); show('vPallet', true); show('hdrHome', true); render(r.pallet); window.scrollTo(0, 0); }
+    else if (!$('vMine').classList.contains('hide')) loadMine();
+  }, function () { busy(btn, false); if (!$('vMine').classList.contains('hide')) loadMine(); });
+}
+function openMine() {
+  ['vHome', 'vPallet', 'vReport', 'vSetup', 'vWs'].forEach(function (v) { show(v, false); });
+  show('vMine', true); show('hdrHome', true); window.scrollTo(0, 0); loadMine();
+}
+function loadMine() {
+  $('mineList').innerHTML = '<div class="card muted">загрузка…</div>';
+  call('apiMyActions', [state.pin], function (r) {
+    if (r.note) { $('mineList').innerHTML = '<div class="card muted">' + esc(r.note) + '</div>'; return; }
+    if (!r.rows.length) { $('mineList').innerHTML = '<div class="card muted">За последние 24 часа ваших действий нет</div>'; return; }
+    $('mineList').innerHTML = r.rows.map(function (a) {
+      var off = !a.can;
+      return '<div class="card act' + (off ? ' off' : '') + '"><div class="t">' + esc(a.time) + ' · ' + esc(a.op) + ' · ' + esc(a.pallets) +
+        (a.state !== 'активно' ? ' · <b>' + esc(a.state) + '</b>' : '') + '</div><div class="x">' + esc(a.text) + '</div>' +
+        (a.can ? '<div class="row" style="gap:8px;margin-top:8px"><button class="btn ghost" style="margin:0;padding:10px;font-size:14px" onclick="undoAct(\'' + a.id + '\', false, this)">↩ Отменить</button>' +
+                 '<button class="btn" style="margin:0;padding:10px;font-size:14px" onclick="undoAct(\'' + a.id + '\', true, this)">✎ Исправить</button></div>'
+               : (a.why ? '<div class="why">' + esc(a.why) + '</div>' : '')) + '</div>';
+    }).join('');
+  });
+}
+
 /* ---------- отчёты ---------- */
 var R = { key: '', tab: 'shift', data: null };
 function n0(x) { return Math.round(x).toLocaleString('ru-RU'); }
 function dkey(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 function openReport() {
-  show('vHome', false); show('vPallet', false); show('vSetup', false); show('vReport', true); show('hdrHome', true);
+  show('vHome', false); show('vPallet', false); show('vSetup', false); show('vMine', false); show('vReport', true); show('hdrHome', true);
   window.scrollTo(0, 0); R.key = R.key || dkey(new Date()); rTab(R.tab); loadReport();
 }
 function rTab(t) {
@@ -511,7 +690,8 @@ function drawStock(r) {
   $('rStockBody').innerHTML = r.stock.map(function (s, i) {
     if (s.rework && !s.qty) return '';
     return '<div class="card stg" onclick="var e=document.getElementById(\'sa' + i + '\');e.classList.toggle(\'hide\')">' +
-      '<div class="row"><div style="flex:1"><b>' + esc(s.stage) + '</b><div class="muted">' + (s.rework ? 'изделия на доработке' : s.pallets + ' пал.') + ' · ' + s.arts.length + ' арт.</div></div>' +
+      '<div class="row"><div style="flex:1"><b>' + esc(s.stage) + '</b><div class="muted">' + (s.rework ? 'изделия на доработке' : s.pallets + ' пал.') + ' · ' + s.arts.length + ' арт.</div>' +
+      (s.zone && s.zone.total ? '<div style="margin-top:4px"><span class="zone ready">✓ готово ' + (s.zone.total - s.zone.wait) + '</span> <span class="zone wait">⏳ выдерживается ' + s.zone.wait + '</span></div>' : '') + '</div>' +
       '<div class="sq">' + n0(s.qty) + '</div><span class="muted">шт</span></div>' +
       '<ul class="rl hide" id="sa' + i + '">' + (s.arts.map(function (a) {
         return '<li><div class="r1"><span><b>' + esc(a.art) + '</b>' + (a.name ? ' · ' + esc(a.name) : '') + '</span><span class="num">' + n0(a.qty) + '</span></div></li>';
@@ -541,7 +721,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') {
     var code = WEDGE.buf; var fast = WEDGE.fast >= Math.max(3, code.length - 2);
     WEDGE.buf = ''; WEDGE.fast = 0;
-    if (code.length >= 3 && fast && extractId(code)) {
+    if (code.length >= 3 && fast && (extractId(code) || isAddr(code))) {
       if (inField && el.id === 'inId') return;               // поле «Номер паллеты» обработает само
       e.preventDefault();
       if (inField && el.value && el.value.slice(-code.length) === code) el.value = el.value.slice(0, -code.length);
@@ -588,7 +768,7 @@ function hdr() {
 /* ---------- переключение цехов ---------- */
 function openWs() {
   stopScan();
-  ['vHome', 'vPallet', 'vReport', 'vSetup'].forEach(function (v) { show(v, false); });
+  ['vHome', 'vPallet', 'vReport', 'vSetup', 'vMine'].forEach(function (v) { show(v, false); });
   show('vWs', true); show('hdrHome', false);
   $('wsList').innerHTML = WORKSHOPS.map(function (w) {
     var on = wsOk(w), saved = ls('ws_' + w.id + '_user');
@@ -620,6 +800,7 @@ function switchWs(id, thenOpen) {
 }
 /* код из QR: если на этикетке другой цех (…&w=c1) — сначала переключаемся */
 function handleCode(text, cb) {
+  if (isAddr(text)) { handleAddr(text); return true; }
   var id = extractId(text);
   if (!id) return false;
   var m = String(text).match(/[?&]w=([\w-]+)/);
@@ -647,7 +828,7 @@ function drawDots() {
   $('pinDots').innerHTML = h; $('inPin').value = PINBUF;
 }
 function openLogin() {
-  ['vHome', 'vPallet', 'vReport', 'vWs'].forEach(function (v) { show(v, false); });
+  ['vHome', 'vPallet', 'vReport', 'vWs', 'vMine'].forEach(function (v) { show(v, false); });
   show('hdrHome', false); show('vSetup', true); show('loginBox', true); show('profBox', false);
   PINBUF = ''; drawDots(); hdr();
   try { $('inPin').focus({ preventScroll: true }); } catch (e) {}
@@ -686,7 +867,7 @@ function fillReasons() {
 /* ---------- главный экран ---------- */
 function home() {
   stopScan(); P = null; START_ID = '';
-  show('vPallet', false); show('vSetup', false); show('vReport', false); show('vWs', false); show('vHome', true); show('hdrHome', false);
+  show('vPallet', false); show('vSetup', false); show('vReport', false); show('vWs', false); show('vMine', false); show('vHome', true); show('hdrHome', false);
   $('inId').value = ''; $('listTitle').textContent = 'На участке «' + state.stage + '»';
   try { history.replaceState(null, '', location.pathname); } catch (e) {}
   loadList();
@@ -702,8 +883,9 @@ function drawList(rows) {
     if (!rows.length) { $('stageList').innerHTML = '<li class="muted">Паллет нет</li>'; return; }
     $('stageList').innerHTML = rows.map(function (r) {
       var st = r.days != null && r.days > APP.staleDays;
-      return '<li onclick="openId(\'' + r.id + '\')"><span><b>' + esc(r.id) + '</b> · ' + esc(r.art) + ' · ' + r.qty + ' шт</span>' +
-             '<span class="' + (st ? 'stale' : 'muted') + '">' + (r.days == null ? '' : r.days + ' дн.') + '</span></li>';
+      var z = r.zoneH != null ? (r.zoneH >= APP.zoneHours ? '<span class="zone ready">✓ готово</span>' : '<span class="zone wait">⏳ ' + hh(APP.zoneHours - r.zoneH) + '</span>') : '';
+      return '<li onclick="openId(\'' + r.id + '\')"><span><b>' + esc(r.id) + '</b> · ' + esc(r.art) + ' · ' + r.qty + ' шт' + (r.addr ? ' · 📍' + esc(r.addr) : '') + '</span>' +
+             (z || '<span class="' + (st ? 'stale' : 'muted') + '">' + (r.days == null ? '' : r.days + ' дн.') + '</span>') + '</li>';
     }).join('');
   }
 }
@@ -726,7 +908,7 @@ function scanStart() {
   var box = Math.min(280, Math.floor(window.innerWidth * 0.7));
   scanner.start({ facingMode: 'environment' }, { fps: 12, qrbox: { width: box, height: box }, aspectRatio: window.innerHeight / window.innerWidth },
     function (text) {
-      if (!extractId(text)) { toast('Это не QR паллеты', false); return; }
+      if (!extractId(text) && !isAddr(text)) { toast('Это не QR паллеты', false); return; }
       try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
       stopScan();
       var cb = pendingScan; pendingScan = null; handleCode(text, cb);
@@ -778,7 +960,7 @@ function scanPhoto(inp) {
       .catch(function () { return detectLib(s1.file); })
       .catch(function () { return detectLib(f); });
   }).then(function (text) {
-    if (!extractId(text)) { toast('Код прочитан, но это не паллета: ' + String(text).slice(0, 40), false); return; }
+    if (!extractId(text) && !isAddr(text)) { toast('Код прочитан, но это не паллета: ' + String(text).slice(0, 40), false); return; }
     var cb = pendingScan; pendingScan = null; handleCode(text, cb);
   }).catch(function () { toast('Код не распознан — снимите ближе, ровно и при хорошем свете', false); });
 }
@@ -787,7 +969,7 @@ function scanPhoto(inp) {
 function openId(id) {
   id = extractId(id) || String(id || '').trim().toUpperCase();
   if (!id) { toast('Введите номер паллеты', false); return; }
-  show('vHome', false); show('vReport', false); show('vSetup', false); show('vPallet', true); show('hdrHome', true); window.scrollTo(0, 0);
+  show('vHome', false); show('vReport', false); show('vSetup', false); show('vMine', false); show('vPallet', true); show('hdrHome', true); window.scrollTo(0, 0);
   $('pId').textContent = id; $('pStatus').textContent = '…'; $('pKv').innerHTML = '<div class="muted">загрузка…</div><div></div>';
   ['aCast', 'aWork', 'aClosed'].forEach(function (x) { show(x, false); });
   call('apiGetPallet', [state.pin, id], render, function () { home(); });
@@ -806,12 +988,21 @@ function render(p) {
   if (p.order) kv.push(['Заказ', '<b>' + esc(p.order) + '</b>' + (p.client ? ' · ' + esc(p.client) : '')]);
   else if (p.client) kv.push(['Контрагент', esc(p.client)]);
   if (p.art) kv.push(['Количество', '<b>' + p.qty + ' шт</b>' + (p.m2 != null ? ' · ' + p.m2 + ' м²' : '')]);
+  if (p.boxes) { var lb = p.qty - p.perBox * (p.boxes - 1);
+    kv.push(['Коробки', '<b>' + p.boxes + ' кор.</b> × ' + p.perBox + ' шт' + (lb !== p.perBox ? ' <span class="muted">(посл. ' + lb + ')</span>' : '')]); }
+  if (p.palW) kv.push(['Вес паллеты', '<b>' + p.palW + ' кг</b>' + (p.itemW ? ' <span class="muted">· изделие ' + p.itemW + ' кг</span>' : '')]);
+  if (p.addr) kv.push(['Адрес', '<b>📍 ' + esc(p.addr) + '</b>']);
+  if (p.strength) kv.push(['Прочность бетона', '<b>' + String(p.strength).replace('.', ',') + ' МПа</b> <span class="muted">· ' + esc(p.strengthInfo) + '</span>']);
+  if (p.zone) { var ok = p.zone.hours >= p.zone.need;
+    kv.push(['Прочность', '<span class="zone ' + (ok ? 'ready' : 'wait') + '">' + (ok ? '✓ выдержана ' : '⏳ ') + hh(p.zone.hours) + ' из ' + hh(p.zone.need) + '</span>' +
+      (ok ? '' : '<div class="muted" style="margin-top:3px">осталось ' + hh(p.zone.need - p.zone.hours) + ' — досрочно только с подтверждением</div>')]); }
   if (p.cast) kv.push(['Залита', esc(p.cast)]);
   if (p.last) kv.push(['Последнее', esc(p.last)]);
   if (!kv.length) kv.push(['', 'Паллета ещё не залита']);
   $('pKv').innerHTML = kv.map(function (r) { return '<div>' + r[0] + '</div><div>' + r[1] + '</div>'; }).join('');
   $('pHist').innerHTML = (p.history || []).map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') || '<li>—</li>';
 
+  drawMyLast(p);
   show('aCast', st === 'Этикетка'); show('aWork', st === 'В работе' || st === 'На СГП');
   show('aClosed', ['Отгружена', 'Списана', 'На доработке', 'Объединена'].indexOf(st) >= 0);
   if (st === 'Этикетка') { $('firstStage').textContent = APP.stages[0]; $('castFilter').value = ''; $('castQty').value = ''; loadCastPlan(p.plan); }
@@ -844,10 +1035,13 @@ function prepWork(p) {
   var onGP = p.stage === gp;
   show('tMove', !onGP);          // со склада ГП дальше двигать некуда — только отгрузка
   show('tShip', onGP);           // отгрузка — только со склада ГП
-  tab(onGP ? 'ship' : 'move');
+  show('tPack', !!p.isPack || onGP);   // упаковка — на участке упаковки (и досчёт на СГП)
+  show('tPlace', true);          // адрес хранения — для любой паллеты в работе
+  prepPack(p); prepPlace(p); prepStr(p); show('confirmBox', false);
+  tab(onGP ? 'ship' : (p.isPack && !p.packed && state.stage === p.stage ? 'pack' : 'move'));
 }
 function tab(t) {
-  ['move', 'bad', 'merge', 'ship'].forEach(function (x) {
+  ['move', 'bad', 'merge', 'ship', 'pack', 'place', 'str'].forEach(function (x) {
     show('p' + x.charAt(0).toUpperCase() + x.slice(1), x === t);
     $('t' + x.charAt(0).toUpperCase() + x.slice(1)).classList.toggle('on', x === t);
   });
@@ -948,7 +1142,15 @@ function act(prm, btn) {
   call('apiAction', [state.pin, P.id, prm], function (r) {
     busy(btn, false); toast(r.message, true);
     if (r.pallet) render(r.pallet);
-  }, function () { busy(btn, false); });
+  }, function (m) {
+    busy(btn, false);
+    var c = String(m).match(/CONFIRM\|(.*)$/);
+    if (c) {                               // сервер просит подтвердить (досрочно из зоны прочности, не упакована)
+      $('confirmTxt').textContent = '⚠ ' + c[1]; show('confirmBox', true);
+      $('confirmGo').onclick = function () { show('confirmBox', false); prm.force = true; act(prm, btn); };
+      $('confirmBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
 }
 
 init();
