@@ -4,7 +4,7 @@
 <base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Цех 3 — паллеты</title>
+<title>Цех 3 — учёт</title>
 <meta name="theme-color" content="#1F4E78">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -73,6 +73,11 @@
   .pl.sel{border-color:var(--brand);background:#EEF4FA} .pl.full{opacity:.6}
   .pl .pa{flex:1;min-width:0} .pl .pa small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pl .pq{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap} .pl .pq.done{color:var(--ok)}
+  .pinDots{display:flex;justify-content:center;gap:14px;margin:18px 0 10px} .pinDots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--brand)} .pinDots i.on{background:var(--brand)}
+  #inPin{position:absolute;opacity:0;pointer-events:none;height:1px;width:1px}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
+  .pad button{border:0;border-radius:14px;background:var(--chip);font-size:26px;font-weight:700;padding:16px 0;color:var(--ink);font-family:inherit}
+  .pad button:active{background:#D3DCE7} .pad button:last-child{background:var(--brand);color:#fff}
   .hide{display:none!important}
   .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
   @keyframes s{to{transform:rotate(360deg)}}
@@ -81,19 +86,29 @@
 <body data-start="<?= startId ?>">
 <header>
   <button id="hdrHome" class="hide" onclick="home()" aria-label="На главную">⌂ Главная</button>
-  <h1 onclick="home()" style="cursor:pointer">Цех 3 · паллеты</h1>
+  <h1 onclick="home()" style="cursor:pointer">Цех 3 · учёт</h1>
   <button id="hdrStage" onclick="openSetup()">участок: —</button>
 </header>
 
 <main>
-  <!-- PIN / настройка оператора -->
-  <section id="vSetup" class="card hide">
-    <div class="big" style="font-size:20px">Настройка телефона</div>
-    <p class="muted">Один раз на этом телефоне. Данные хранятся только в браузере.</p>
-    <div id="pinBox"><label>PIN-код цеха</label><input id="inPin" type="password" inputmode="numeric" autocomplete="off"></div>
-    <label>Ваше имя (будет в истории перемещений)</label><input id="inUser" placeholder="Например: Иванов">
-    <label>Мой участок</label><select id="inStage"></select>
-    <button class="btn" onclick="saveSetup()">Сохранить</button>
+  <!-- Вход по PIN -->
+  <section id="vSetup" class="hide">
+    <div class="card" id="loginBox">
+      <div class="big" style="font-size:22px;text-align:center;margin-top:6px">Вход</div>
+      <p class="muted" style="text-align:center;margin:4px 0 0">Введите ваш личный PIN-код</p>
+      <div class="pinDots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+      <input id="inPin" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="8"
+        style="text-align:center;font-size:26px;letter-spacing:10px" oninput="pinInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
+      <div class="pad" id="pad"></div>
+      <button class="btn" id="btnLogin" onclick="doLogin()">Войти</button>
+    </div>
+    <div class="card hide" id="profBox">
+      <div class="muted">Вы вошли как</div>
+      <div class="big" style="font-size:22px" id="profName">—</div>
+      <label>Мой участок</label><select id="inStage"></select>
+      <button class="btn" onclick="saveStage()">Готово</button>
+      <button class="btn ghost" onclick="logout()">Выйти (сменить пользователя)</button>
+    </div>
   </section>
 
   <!-- Главный экран -->
@@ -257,6 +272,7 @@ if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
 var state = { pin: ls('c3_pin') || '', user: ls('c3_user') || '', stage: ls('c3_stage') || '' };
+var PINBUF = '';
 
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
 function $(id) { return document.getElementById(id); }
@@ -272,7 +288,7 @@ function busy(btn, on) { if (!btn) return; if (on) { btn._t = btn.innerHTML; btn
 function call(fn, args, ok, fail) {
   var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function (e) {
     var m = (e && e.message) || String(e);
-    if (/PIN/.test(m)) { state.pin = ''; ls('c3_pin', ''); openSetup(true); toast('Неверный PIN-код', false); }
+    if (/(^|:\s*)PIN$/.test(m)) { state.pin = ''; ls('c3_pin', ''); openLogin(); toast('Неверный PIN-код или доступ закрыт', false); }
     else toast(m.replace(/^(Error|Exception):\s*/, ''), false);
     fail && fail(m);
   });
@@ -366,37 +382,73 @@ function drawStock(r) {
 
 /* ---------- старт ---------- */
 function init() {
-  call('apiInit', [state.pin], function (c) {
-    APP = c;
-    var sel = $('inStage'); sel.innerHTML = c.stages.map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
-    if (state.stage) sel.value = state.stage;
-    fillReasons();
-    if (!state.user || !state.stage) { openSetup(false); return; }
-    hdr();
-    if (START_ID) openId(START_ID); else home();
-  });
+  buildPad();
+  if (!state.pin) { openLogin(); return; }
+  call('apiInit', [state.pin], function (c) { afterLogin(c, false); });
 }
-function hdr() { $('hdrStage').textContent = (state.stage || '—') + (state.user ? ' · ' + state.user : ''); }
-function openSetup(needPin) {
+function afterLogin(c, fresh) {
+  APP = c;
+  if (c.user && c.user.name) { state.user = c.user.name; ls('c3_user', state.user); }
+  if (!state.user) state.user = 'Без имени';
+  if (fresh || !state.stage || c.stages.indexOf(state.stage) < 0) state.stage = (c.user && c.user.stage) || state.stage || '';
+  ls('c3_stage', state.stage);
+  $('inStage').innerHTML = c.stages.map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
+  fillReasons(); hdr();
+  if (!state.stage) { openProfile(); return; }
+  show('vSetup', false);
+  if (fresh) toast('Здравствуйте, ' + state.user + '!', true);
+  if (START_ID) openId(START_ID); else home();
+}
+function hdr() { $('hdrStage').textContent = state.user ? (state.stage || '—') + ' · ' + state.user : 'вход'; }
+
+/* ---------- вход по PIN ---------- */
+function buildPad() {
+  var k = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
+  $('pad').innerHTML = k.map(function (x) { return '<button type="button" onclick="padKey(\'' + x + '\')">' + x + '</button>'; }).join('');
+  show('btnLogin', false);
+}
+function padKey(x) {
+  if (x === '⌫') PINBUF = PINBUF.slice(0, -1);
+  else if (x === 'OK') { doLogin(); return; }
+  else if (PINBUF.length < 8) PINBUF += x;
+  drawDots();
+}
+function pinInput() { PINBUF = $('inPin').value.replace(/\D/g, '').slice(0, 8); drawDots(); }
+function drawDots() {
+  var n = Math.max(4, PINBUF.length), h = '';
+  for (var i = 0; i < n; i++) h += '<i' + (i < PINBUF.length ? ' class="on"' : '') + '></i>';
+  $('pinDots').innerHTML = h; $('inPin').value = PINBUF;
+}
+function openLogin() {
   ['vHome', 'vPallet', 'vReport'].forEach(function (v) { show(v, false); });
-  show('vSetup', true); show('pinBox', needPin !== false || !state.pin);
-  if (!$('inStage').options.length) call('apiStages', [], function (st) {
-    $('inStage').innerHTML = st.map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
-    if (state.stage) $('inStage').value = state.stage;
-  });
-  if (state.user || !$('inUser').value) $('inUser').value = state.user;
+  show('hdrHome', false); show('vSetup', true); show('loginBox', true); show('profBox', false);
+  PINBUF = ''; drawDots(); hdr();
+  try { $('inPin').focus({ preventScroll: true }); } catch (e) {}
+}
+function doLogin() {
+  var pin = PINBUF;
+  if (pin.length < 4) { toast('PIN — минимум 4 цифры', false); return; }
+  $('pinDots').style.opacity = .4;
+  call('apiInit', [pin], function (c) {
+    $('pinDots').style.opacity = 1;
+    state.pin = pin; ls('c3_pin', pin); state.stage = ''; afterLogin(c, true);
+  }, function () { $('pinDots').style.opacity = 1; PINBUF = ''; drawDots(); });
+}
+function openProfile() {
+  ['vHome', 'vPallet', 'vReport'].forEach(function (v) { show(v, false); });
+  show('vSetup', true); show('loginBox', false); show('profBox', true); show('hdrHome', !!state.stage);
+  $('profName').textContent = state.user || '—';
   if (state.stage) $('inStage').value = state.stage;
 }
-function saveSetup() {
-  var pin = $('pinBox').classList.contains('hide') ? state.pin : val('inPin');
-  var user = val('inUser'), stage = $('inStage').value;
-  if (!user) { toast('Введите имя', false); return; }
-  call('apiInit', [pin], function (c) {
-    APP = c; state.pin = pin; state.user = user; state.stage = stage;
-    ls('c3_pin', pin); ls('c3_user', user); ls('c3_stage', stage);
-    fillReasons(); hdr(); show('vSetup', false);
-    if (START_ID) openId(START_ID); else home();
-  });
+function openSetup(needPin) { if (needPin || !state.pin || !APP) openLogin(); else openProfile(); }
+function saveStage() {
+  state.stage = $('inStage').value; ls('c3_stage', state.stage); hdr(); show('vSetup', false);
+  if (START_ID) openId(START_ID); else home();
+}
+function logout() {
+  state.pin = ''; state.user = ''; state.stage = ''; APP = null;
+  ls('c3_pin', ''); ls('c3_user', ''); ls('c3_stage', '');
+  openLogin();
 }
 function fillReasons() {
   var o = APP.reasons.map(function (r) { return '<option>' + esc(r) + '</option>'; }).join('');
@@ -505,7 +557,7 @@ function scanPhoto(inp) {
 function openId(id) {
   id = extractId(id) || String(id || '').trim().toUpperCase();
   if (!id) { toast('Введите номер паллеты', false); return; }
-  show('vHome', false); show('vReport', false); show('vPallet', true); show('hdrHome', true); window.scrollTo(0, 0);
+  show('vHome', false); show('vReport', false); show('vSetup', false); show('vPallet', true); show('hdrHome', true); window.scrollTo(0, 0);
   $('pId').textContent = id; $('pStatus').textContent = '…'; $('pKv').innerHTML = '<div class="muted">загрузка…</div><div></div>';
   ['aCast', 'aWork', 'aClosed'].forEach(function (x) { show(x, false); });
   call('apiGetPallet', [state.pin, id], render, function () { home(); });
