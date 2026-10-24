@@ -124,6 +124,7 @@
   .act.off{opacity:.55} .act .why{font-size:12px;color:var(--warn);margin-top:6px}
   .packsum{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--bg);font-size:15px;line-height:1.45}
   .confirmbox{border:2px solid var(--warn);background:var(--warnbg);color:#5A3A00;font-weight:600;margin-top:10px}
+  .train{display:block;margin:0;padding:10px 12px;border-radius:12px;background:#FFF4CC;color:#7A5A00;font-weight:800;text-align:center;border:2px dashed #E0B000}
   .zone{display:inline-block;padding:3px 9px;border-radius:99px;font-size:13px;font-weight:800} .zone.wait{background:var(--warnbg);color:var(--warn)} .zone.ready{background:var(--okbg);color:var(--ok)}
   .strgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px} .strgrid input{padding:10px 4px;text-align:center;font-size:17px}
   .strgrid input.ok{border-color:var(--em);background:var(--emLight)}
@@ -203,6 +204,7 @@
   <section id="vPallet" class="hide">
     <div class="card">
       <div class="row"><div class="big" id="pId" style="flex:1"></div><span class="badge" id="pStatus"></span></div>
+      <div class="train hide" id="pTrain" style="margin-top:10px">🎓 УЧЕБНАЯ ПАЛЛЕТА — для тренировки, в учёт не идёт</div>
       <div class="kv" id="pKv"></div>
       <details style="margin-top:8px"><summary class="muted">История</summary><ol class="hist" id="pHist"></ol></details>
     </div>
@@ -344,13 +346,13 @@
 <script>
 /* ==== ЦЕХА. Для каждого цеха — своя таблица и своя ссылка /exec (Apps Script → Развернуть → Управление развёртываниями).
    id — короткий код цеха; он же в «Настройки»!E11 таблицы этого цеха. Пустая ссылка — цех пока не подключён. ==== */
-var WORKSHOPS = [
+var WORKSHOPS = window.SRV ? window.SRV.workshops : [
   { id: 'c1', name: 'Цех 1', api: 'https://script.google.com/macros/s/AKfycbw3JVFyvu9nag0KQQP1hom-XbzQ2ahjWgeiHgXrcCdQ9fvZfoP2_tUx2oSup97sphen/exec' },
   { id: 'c2', name: 'Цех 2', api: 'https://script.google.com/macros/s/AKfycbxTcri2naa1Et8iIvHMF6ir26CiorNi1iBo5EVNjbqYnrBMVMVZCKtmDywRlEs5kY_D/exec' },
   { id: 'c3', name: 'Цех 3', api: 'https://script.google.com/macros/s/AKfycbxDwdSj_R3psziVrsHIeay500JCorYpvYPzjMDZNTt7U7zZDEj1h7inwGyITX-hPapS/exec' },
 ];
 var API_URL = '', WS = null;
-function wsOk(w) { return w && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(String(w.api || '').trim()); }
+function wsOk(w) { var a = String((w && w.api) || '').trim(); return !!w && (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(a) || /^\/api\/[\w-]+$/.test(a)); }
 function wsById(id) { for (var i = 0; i < WORKSHOPS.length; i++) if (WORKSHOPS[i].id === id) return WORKSHOPS[i]; return null; }
 (function () {
   if (window.google && google.script && google.script.run) return;   // открыто из Apps Script — один цех, как раньше
@@ -371,12 +373,20 @@ function wsById(id) { for (var i = 0; i < WORKSHOPS.length; i++) if (WORKSHOPS[i
       if (fn === 'withFailureHandler') return function (h) { return mk(ok, h); };
       return function () {
         var args = [].slice.call(arguments);
-        if (API_URL.indexOf('script.google.com') < 0) { fail && fail(new Error('Цех «' + (WS ? WS.name : '?') + '» не подключён: впишите ссылку /exec в WORKSHOPS в index.html')); return; }
+        if (!wsOk(WS)) { fail && fail(new Error('Цех «' + (WS ? WS.name : '?') + '» не подключён: впишите ссылку /exec в WORKSHOPS в index.html')); return; }
         fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                          body: JSON.stringify({ fn: fn, args: args }) })
           .then(function (r) { return r.json(); })
-          .then(function (d) { if (d && d.ok) { ok && ok(d.result); } else { fail && fail(new Error((d && d.error) || 'Ошибка сервера')); } })
-          .catch(function () { fail && fail(new Error('Нет связи с таблицей — проверьте интернет и повторите')); });
+          .then(function (d) {
+            if (d && d.ok) { ok && ok(d.result); return; }
+            var em = (d && d.error) || 'Ошибка сервера';
+            // учёт цеха перенесён на сервер — открываем приложение с сервера (та же паллета)
+            var sv = String(em).match(/^SERVER\|(\S+)/);
+            if (sv) { var pq = ''; try { pq = new URLSearchParams(location.search).get('p') || ''; } catch (e) {}
+                      location.href = sv[1].replace(/\/?$/, '/') + '?w=' + encodeURIComponent(WS.id) + (pq ? '&p=' + encodeURIComponent(pq) : ''); return; }
+            fail && fail(new Error(em));
+          })
+          .catch(function () { fail && fail(new Error(window.SRV ? 'Нет связи с сервером цеха — проверьте Wi-Fi и повторите' : 'Нет связи с таблицей — проверьте интернет и повторите')); });
       };
     } });
   }
@@ -390,7 +400,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '22.10.2026 · 14';
+var APP_VER = '24.10.2026 · 16';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -760,7 +770,7 @@ document.addEventListener('keydown', function (e) {
 /* ---------- старт ---------- */
 function init() {
   setTheme(curTheme());
-  $('verH').textContent = APP_VER + (window.STANDALONE ? ' · сайт' : ' · Apps Script'); $('verP').textContent = $('verH').textContent;
+  $('verH').textContent = APP_VER + (window.SRV ? ' · сервер' : window.STANDALONE ? ' · сайт' : ' · Apps Script'); $('verP').textContent = $('verH').textContent;
   buildPad();
   if (!state.pin) { openLogin(); return; }
   call('apiInit', [state.pin], function (c) { afterLogin(c, false); });
@@ -919,7 +929,7 @@ function drawList(rows) {
     $('stageList').innerHTML = rows.map(function (r) {
       var st = r.days != null && r.days > APP.staleDays;
       var z = r.zoneH != null ? (r.zoneH >= APP.zoneHours ? '<span class="zone ready">✓ готово</span>' : '<span class="zone wait">⏳ ' + hh(APP.zoneHours - r.zoneH) + '</span>') : '';
-      return '<li onclick="openId(\'' + r.id + '\')"><span><b>' + esc(r.id) + '</b> · ' + esc(r.art) + ' · ' + r.qty + ' шт' + (r.addr ? ' · 📍' + esc(r.addr) : '') + '</span>' +
+      return '<li onclick="openId(\'' + r.id + '\')"><span>' + (r.train ? '🎓 ' : '') + '<b>' + esc(r.id) + '</b> · ' + esc(r.art) + ' · ' + r.qty + ' шт' + (r.addr ? ' · 📍' + esc(r.addr) : '') + '</span>' +
              (z || '<span class="' + (st ? 'stale' : 'muted') + '">' + (r.mins != null ? '⏱ ' + dur(r.mins) : r.days == null ? '' : r.days + ' дн.') + '</span>') + '</li>';
     }).join('');
   }
@@ -1014,8 +1024,9 @@ function render(p) {
   if (p.notFound && !p.validId) { toast('Паллета ' + p.id + ' не найдена', false); home(); return; }
   var st = p.notFound ? 'Этикетка' : p.status;
   var cls = { 'В работе': 'b-work', 'На СГП': 'b-gp', 'Этикетка': 'b-new', 'Отгружена': 'b-closed', 'Списана': 'b-bad', 'На доработке': 'b-bad', 'Объединена': 'b-closed' }[st] || '';
-  $('pId').textContent = p.id; $('pStatus').textContent = st === 'Этикетка' ? 'не залита' : st; $('pStatus').className = 'badge ' + cls;
+  $('pId').textContent = p.id; $('pStatus').textContent = (p.train ? '🎓 ' : '') + (st === 'Этикетка' ? 'не залита' : st); $('pStatus').className = 'badge ' + cls;
   var kv = [];
+  show('pTrain', !!p.train);
   if (p.stage) kv.push(['Участок', '<b>' + esc(p.stage) + '</b>' + (p.mins != null ? ' · ⏱ ' + dur(p.mins) : p.days != null ? ' · ' + p.days + ' дн.' : '')]);
   if (p.art) kv.push(['Изделие', '<b>' + esc(p.art) + '</b> ' + esc(p.artName || '')]);
   if (p.format) kv.push(['Формат', esc(p.format)]);
@@ -1039,7 +1050,7 @@ function render(p) {
 
   drawMyLast(p);
   show('aCast', st === 'Этикетка'); show('aWork', st === 'В работе' || st === 'На СГП');
-  show('aClosed', ['Отгружена', 'Списана', 'На доработке', 'Объединена'].indexOf(st) >= 0);
+  show('aClosed', !!st && ['Этикетка', 'В работе', 'На СГП'].indexOf(st) < 0);
   if (st === 'Этикетка') { $('firstStage').textContent = APP.stages[0]; $('castFilter').value = ''; $('castQty').value = ''; loadCastPlan(p.plan); }
   if (st === 'В работе' || st === 'На СГП') prepWork(p);
 }
