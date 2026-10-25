@@ -80,6 +80,11 @@
   .toast.ok{background:var(--ok);color:#fff} .toast.bad{background:var(--bad);color:#fff}
   .list{margin:6px 0 0;padding:0;list-style:none} .list li{display:flex;justify-content:space-between;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);font-size:15px}
   .list li:last-child{border-bottom:0} .stale{color:var(--warn);font-weight:700}
+  #stageList li{border-left:5px solid var(--line);padding-left:10px;gap:8px} #stageList li > span:first-child{min-width:0}
+  #stageList li.a0{border-left-color:var(--ok)} #stageList li.a1{border-left-color:#9AA5A0} #stageList li.a2{border-left-color:var(--warn)} #stageList li.a3{border-left-color:var(--bad)}
+  .age{flex:none;padding:3px 9px;border-radius:99px;font-size:13px;font-weight:800;white-space:nowrap}
+  .age.a0{background:var(--okbg);color:var(--ok)} .age.a1{background:var(--chip);color:var(--subInk)} .age.a2{background:var(--warnbg);color:var(--warn)} .age.a3{background:var(--badbg);color:var(--bad)}
+  .ageLeg{font-size:12px;color:var(--muted);margin:4px 0 0;display:flex;flex-wrap:wrap;gap:4px 10px} .ageLeg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
   .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
   .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:118px;margin:0;border:0;border-radius:16px;font-size:19px;font-weight:700;line-height:1.2;font-family:inherit;color:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .tile .ti{font-size:34px;line-height:1}
@@ -195,7 +200,7 @@
       <p class="muted" style="margin:10px 0 0">Можно и встроенной камерой телефона: наведите на QR-код и нажмите на ссылку — карточка паллеты откроется сразу.</p>
     </div>
     <div class="card">
-      <div class="row"><b style="flex:1" id="listTitle">На моём участке</b><button class="badge" style="border:0" onclick="loadList()">обновить</button></div>
+      <div class="row"><b style="flex:1" id="listTitle">На моём участке</b><span class="muted" style="font-size:12px;margin-right:8px">сначала свежие</span><button class="badge" style="border:0" onclick="loadList()">обновить</button></div>
       <ul class="list" id="stageList"><li class="muted">—</li></ul>
     </div>
     <p class="muted" style="text-align:center;margin:4px 0 14px">версия <span id="verH"></span></p>
@@ -414,7 +419,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '24.10.2026 · 17';
+var APP_VER = '25.10.2026 · 18';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -961,12 +966,19 @@ function loadList() {
 function drawList(rows) {
   {
     if (!rows.length) { $('stageList').innerHTML = '<li class="muted">Паллет нет</li>'; return; }
+    var sd = (APP.staleDays || 2) * 1440;
+    // цвет по времени на участке: зелёный — только что поступила (до 2 ч), серый — до суток, оранжевый — больше суток, красный — залежалась
+    var ageCls = function (m) { return m == null ? 'a1' : m < 120 ? 'a0' : m < 1440 ? 'a1' : m < sd ? 'a2' : 'a3'; };
     $('stageList').innerHTML = rows.map(function (r) {
-      var st = r.days != null && r.days > APP.staleDays;
-      var z = r.zoneH != null ? (r.zoneH >= APP.zoneHours ? '<span class="zone ready">✓ готово</span>' : '<span class="zone wait">⏳ ' + hh(APP.zoneHours - r.zoneH) + '</span>') : '';
-      return '<li onclick="openId(\'' + r.id + '\')"><span>' + (r.train ? '🎓 ' : '') + '<b>' + esc(r.id) + '</b> · ' + esc(r.art) + ' · ' + r.qty + ' шт' + (r.addr ? ' · 📍' + esc(r.addr) : '') + '</span>' +
-             (z || '<span class="' + (st ? 'stale' : 'muted') + '">' + (r.mins != null ? '⏱ ' + dur(r.mins) : r.days == null ? '' : r.days + ' дн.') + '</span>') + '</li>';
-    }).join('');
+      var a = ageCls(r.mins);
+      var z = r.zoneH != null ? (r.zoneH >= APP.zoneHours ? ' <span class="zone ready">✓ готово</span>' : ' <span class="zone wait">⏳ ' + hh(APP.zoneHours - r.zoneH) + '</span>') : '';
+      var t = r.mins != null ? '⏱ ' + dur(r.mins) : r.ts ? new Date(r.ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '';
+      return '<li class="' + a + '" onclick="openId(\'' + r.id + '\')"><span>' + (r.train ? '🎓 ' : '') + '<b>' + esc(r.id) + '</b> · ' + esc(r.art) +
+             (r.color ? ' <span class="clr">' + esc(r.color) + '</span>' : '') + ' · ' + r.qty + ' шт' + (r.addr ? ' · 📍' + esc(r.addr) : '') + z + '</span>' +
+             (t ? '<span class="age ' + a + '">' + t + '</span>' : '') + '</li>';
+    }).join('') +
+    '<li class="ageLeg" style="border:0;cursor:default"><span><i style="background:var(--ok)"></i>до 2 ч</span><span><i style="background:#9AA5A0"></i>до суток</span>' +
+    '<span><i style="background:var(--warn)"></i>больше суток</span><span><i style="background:var(--bad)"></i>больше ' + (APP.staleDays || 2) + ' дн. — залежалась</span></li>';
   }
 }
 
