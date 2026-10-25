@@ -82,6 +82,7 @@
   .list li:last-child{border-bottom:0} .stale{color:var(--warn);font-weight:700}
   #stageList li{border-left:5px solid var(--line);padding-left:10px;gap:8px} #stageList li > span:first-child{min-width:0}
   #stageList li.a0{border-left-color:var(--ok)} #stageList li.a1{border-left-color:#9AA5A0} #stageList li.a2{border-left-color:var(--warn)} #stageList li.a3{border-left-color:var(--bad)}
+  #stageList .sl{display:flex;flex-direction:column;gap:3px} #stageList .sl1{line-height:1.35} #stageList .sl2{color:var(--subInk);font-size:14px}
   .age{flex:none;padding:3px 9px;border-radius:99px;font-size:13px;font-weight:800;white-space:nowrap}
   .age.a0{background:var(--okbg);color:var(--ok)} .age.a1{background:var(--chip);color:var(--subInk)} .age.a2{background:var(--warnbg);color:var(--warn)} .age.a3{background:var(--badbg);color:var(--bad)}
   .ageLeg{font-size:12px;color:var(--muted);margin:4px 0 0;display:flex;flex-wrap:wrap;gap:4px 10px} .ageLeg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
@@ -419,7 +420,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '25.10.2026 · 18';
+var APP_VER = '25.10.2026 · 19';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -973,8 +974,9 @@ function drawList(rows) {
       var a = ageCls(r.mins);
       var z = r.zoneH != null ? (r.zoneH >= APP.zoneHours ? ' <span class="zone ready">✓ готово</span>' : ' <span class="zone wait">⏳ ' + hh(APP.zoneHours - r.zoneH) + '</span>') : '';
       var t = r.mins != null ? '⏱ ' + dur(r.mins) : r.ts ? new Date(r.ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '';
-      return '<li class="' + a + '" onclick="openId(\'' + r.id + '\')"><span>' + (r.train ? '🎓 ' : '') + '<b>' + esc(r.id) + '</b> · ' + esc(r.art) +
-             (r.color ? ' <span class="clr">' + esc(r.color) + '</span>' : '') + ' · ' + r.qty + ' шт' + (r.addr ? ' · 📍' + esc(r.addr) : '') + z + '</span>' +
+      return '<li class="' + a + '" onclick="openId(\'' + r.id + '\')"><span class="sl">' +
+             '<span class="sl1">' + (r.train ? '🎓 ' : '') + '<b>' + esc(r.id) + '</b> · ' + esc(r.art) + (r.color ? ' <span class="clr">' + esc(r.color) + '</span>' : '') + '</span>' +
+             '<span class="sl2"><b>' + n0(r.qty) + ' шт</b>' + (r.addr ? ' · 📍' + esc(r.addr) : '') + z + '</span></span>' +
              (t ? '<span class="age ' + a + '">' + t + '</span>' : '') + '</li>';
     }).join('') +
     '<li class="ageLeg" style="border:0;cursor:default"><span><i style="background:var(--ok)"></i>до 2 ч</span><span><i style="background:#9AA5A0"></i>до суток</span>' +
