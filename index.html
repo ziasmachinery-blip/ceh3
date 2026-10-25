@@ -124,6 +124,7 @@
   .act.off{opacity:.55} .act .why{font-size:12px;color:var(--warn);margin-top:6px}
   .packsum{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--bg);font-size:15px;line-height:1.45}
   .confirmbox{border:2px solid var(--warn);background:var(--warnbg);color:#5A3A00;font-weight:600;margin-top:10px}
+  .post{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--ink);color:#fff;font-size:11px;font-weight:800;vertical-align:middle}
   .train{display:block;margin:0;padding:10px 12px;border-radius:12px;background:#FFF4CC;color:#7A5A00;font-weight:800;text-align:center;border:2px dashed #E0B000}
   .zone{display:inline-block;padding:3px 9px;border-radius:99px;font-size:13px;font-weight:800} .zone.wait{background:var(--warnbg);color:var(--warn)} .zone.ready{background:var(--okbg);color:var(--ok)}
   .strgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px} .strgrid input{padding:10px 4px;text-align:center;font-size:17px}
@@ -214,6 +215,7 @@
     <div class="card hide" id="aCast">
       <b>Залить новую паллету</b>
       <label>Позиция сменного задания на сегодня</label>
+      <div class="seg hide" id="postSeg" style="margin-bottom:8px"></div>
       <input id="castFilter" placeholder="поиск: заказ, контрагент, артикул, цвет" oninput="drawCastPlan()" class="hide">
       <div id="castPlanList"><p class="muted">загрузка задания…</p></div>
       <div id="techBox" class="tech hide"></div>
@@ -231,7 +233,7 @@
         <div class="row" style="gap:8px;margin-top:10px"><button class="btn ghost" style="margin:0" onclick="show('confirmBox', false)">Отмена</button>
         <button class="btn warn" style="margin:0" id="confirmGo">Всё равно</button></div></div>
       <p class="muted" style="margin:12px 2px 0">Что сделать с паллетой:</p>
-      <div class="tabs" style="margin-top:6px"><button id="tMove" class="on" onclick="tab('move')">Переместить</button><button id="tBad" onclick="tab('bad')">Брак</button><button id="tMerge" onclick="tab('merge')">Слияние</button><button id="tShip" onclick="tab('ship')">Отгрузить</button><button id="tPack" onclick="tab('pack')">📦 Упаковать</button><button id="tPlace" onclick="tab('place')">📍 Разместить</button><button id="tStr" onclick="tab('str')">🔨 Прочность</button></div>
+      <div class="tabs" style="margin-top:6px"><button id="tMove" class="on" onclick="tab('move')">Переместить</button><button id="tBad" onclick="tab('bad')">Брак</button><button id="tMerge" onclick="tab('merge')">Слияние</button><button id="tShip" onclick="tab('ship')">Отгрузить</button><button id="tPack" onclick="tab('pack')">📦 Упаковать</button><button id="tPlace" onclick="tab('place')">📍 Разместить</button><button id="tStr" onclick="tab('str')">🔨 Прочность</button><button id="tEdit" onclick="tab('edit')">✎ Исправить</button></div>
 
       <div class="card" id="pMove" style="margin-top:8px">
         <button class="btn ok" id="btnMine" onclick="pickTo(state.stage)"></button>
@@ -295,6 +297,18 @@
         <div class="strgrid" id="strGrid"></div>
         <div class="packsum" id="strSum"></div>
         <button class="btn ok" onclick="doStr(this)">🔨 Зафиксировать прочность</button>
+      </div>
+
+      <div class="card hide" id="pEdit" style="margin-top:8px">
+        <b>Исправить данные паллеты</b>
+        <p class="muted" style="margin:4px 0 0">Если при вводе ошиблись: количество, артикул, цвет или заказ. Исправление записывается в историю с вашим именем.</p>
+        <label>Количество на паллете, шт</label><input id="eQty" type="number" inputmode="numeric" min="1">
+        <label>Артикул</label><select id="eArt"></select>
+        <label>Цвет (пигмент)</label><input id="eColor" autocapitalize="characters">
+        <label>№ заказа</label><input id="eOrder">
+        <label>Контрагент</label><input id="eClient">
+        <label>Причина исправления</label><input id="eReason" placeholder="например: пересчитали, ошиблись при заливке">
+        <button class="btn ok" onclick="doEdit(this)">✎ Сохранить исправление</button>
       </div>
 
       <div class="card hide" id="pShip" style="margin-top:8px">
@@ -400,7 +414,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '24.10.2026 · 16';
+var APP_VER = '24.10.2026 · 17';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -445,7 +459,7 @@ function planRowHtml(x, onclick, sel) {
   var done = x.plan && x.fact >= x.plan;
   var sub = [x.order ? 'заказ <b>' + esc(x.order) + '</b>' : '', esc(x.client || '')].filter(Boolean).join(' · ');
   return '<button class="pl' + (done ? ' full' : '') + (sel ? ' sel' : '') + '"' + (onclick ? ' onclick="' + onclick + '"' : ' disabled') + '>' +
-    '<span class="pa"><b>' + esc(x.art) + '</b>' + (x.color ? ' <span class="clr">' + esc(x.color) + '</span>' : '') +
+    '<span class="pa"><b>' + esc(x.art) + '</b>' + (x.color ? ' <span class="clr">' + esc(x.color) + '</span>' : '') + (x.post ? '<span class="post">' + esc(x.post) + '</span>' : '') +
     (x.name ? '<small>' + esc(x.name) + '</small>' : '') + (sub ? '<small>' + sub + '</small>' : '') +
     (x.comment ? '<small>' + esc(x.comment) + '</small>' : '') +
     (onclick && (x.tech || x.perMold) ? '<small>' + (x.tech ? '🧪 техкарта ' + esc(x.tech.pigment || '') : '') + (x.tech && x.perMold ? ' · ' : '') + (x.perMold ? x.perMold + ' шт в форме' : '') + '</small>' : '') + '</span>' +
@@ -469,14 +483,30 @@ function loadCastPlan(given) {
       $('castPlanList').innerHTML = '<div class="warnbox">На сегодня нет сменного задания.<br>Заливать можно только по заданию — обратитесь к мастеру.</div>';
       return;
     }
+    var posts = []; CP.forEach(function (x) { if (x.post && posts.indexOf(x.post) < 0) posts.push(x.post); });
+    posts.sort();
+    if (POST && posts.indexOf(POST) < 0) POST = '';
+    show('postSeg', posts.length > 0);
+    $('postSeg').innerHTML = posts.concat(['']).map(function (p) {
+      return '<button class="' + (p === POST ? 'on' : '') + '" onclick="setPost(\'' + esc(p) + '\')">' + (p ? esc(p) : 'Все') + '</button>'; }).join('');
     show('castFilter', CP.length > 6); drawCastPlan();
-    if (CP.length === 1) pickPlan(0); else setUnit(UNIT);
+    var vis = CP.filter(postOk);
+    if (vis.length === 1) pickPlan(CP.indexOf(vis[0])); else setUnit(UNIT);
   };
   if (given) got(given); else call('apiPlan', [state.pin], got);   // задание обычно приходит вместе с карточкой паллеты
+}
+var POST = ls(wk('post')) || '';
+function postOk(x) { return !POST || !x.post || x.post === POST; }
+function setPost(p) {
+  POST = p; ls(wk('post'), p);
+  Array.prototype.forEach.call($('postSeg').children, function (b) { b.classList.toggle('on', b.textContent === (p || 'Все')); });
+  if (castSel >= 0 && !postOk(CP[castSel])) castSel = -1;
+  drawCastPlan();
 }
 function drawCastPlan() {
   var q = val('castFilter').toLowerCase();
   var html = CP.map(function (x, i) {
+    if (!postOk(x) && i !== castSel) return '';
     if (q && (x.order + ' ' + x.client + ' ' + x.art + ' ' + x.name + ' ' + x.color).toLowerCase().indexOf(q) < 0 && i !== castSel) return '';
     return planRowHtml(x, 'pickPlan(' + i + ')', i === castSel);
   }).join('');
@@ -680,13 +710,14 @@ function n0(x) { return Math.round(x).toLocaleString('ru-RU'); }
 function dkey(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 function openReport() {
   show('vHome', false); show('vPallet', false); show('vSetup', false); show('vMine', false); show('vReport', true); show('hdrHome', true);
-  window.scrollTo(0, 0); R.key = R.key || dkey(new Date()); rTab(R.tab); loadReport();
+  window.scrollTo(0, 0); R.key = R.key || ''; rTab(R.tab); loadReport();
 }
 function rTab(t) {
   R.tab = t; $('rtShift').classList.toggle('on', t === 'shift'); $('rtStock').classList.toggle('on', t === 'stock');
   show('rShift', t === 'shift'); show('rStock', t === 'stock');
 }
 function rDay(d) {
+  if (!R.key) return;
   var p = R.key.split('-'); var x = new Date(+p[0], +p[1] - 1, +p[2] + d);
   R.key = dkey(x); loadReport();
 }
@@ -706,6 +737,10 @@ function drawShift(r) {
     (function () { var pf = 0, ff = 0; s.rows.forEach(function (x) { if (x.forms && x.perMold) { pf += x.forms; ff += x.fact / x.perMold; } });
       return pf ? '<div class="muted">в формах: <b style="color:var(--ink)">' + fr(ff) + '</b> из ' + pf + '</div>' : ''; })();
   if (s.plan) html += '<div class="bar ' + (pct > 100 ? 'over' : pct >= 100 ? 'done' : '') + '"><i style="width:' + Math.min(pct, 100) + '%"></i></div>';
+  var byPost = {}; s.rows.forEach(function (x) { if (!x.post) return; var b = byPost[x.post] = byPost[x.post] || { plan: 0, fact: 0 }; b.plan += x.plan; b.fact += x.fact; });
+  var pk = Object.keys(byPost).sort();
+  if (pk.length) html += '<div style="margin-top:8px">' + pk.map(function (k) { var b = byPost[k], pc = b.plan ? Math.round(b.fact / b.plan * 100) : 0;
+    return '<div class="row" style="padding:4px 0"><span class="post" style="margin:0 8px 0 0">' + esc(k) + '</span><span style="flex:1">' + n0(b.fact) + ' из ' + n0(b.plan) + ' шт</span><b>' + pc + '%</b></div>'; }).join('') + '</div>';
   if (!s.hasPlan) html += '<p class="muted" style="margin:10px 0 0">Задание на ' + esc(r.date) + ' не введено — заполните лист «Сменное задание» в таблице.</p>';
   RS = s.rows;
   html += s.rows.map(function (x, i) { return planRowHtml(x, 'repTech(' + i + ')', false) + '<div class="tech hide" id="rt' + i + '"></div>'; }).join('');
@@ -1031,6 +1066,7 @@ function render(p) {
   if (p.art) kv.push(['Изделие', '<b>' + esc(p.art) + '</b> ' + esc(p.artName || '')]);
   if (p.format) kv.push(['Формат', esc(p.format)]);
   if (p.color) kv.push(['Цвет', '<b>' + esc(p.color) + '</b>']);
+  if (p.post) kv.push(['Пост заливки', '<b>' + esc(p.post) + '</b>']);
   if (p.order) kv.push(['Заказ', '<b>' + esc(p.order) + '</b>' + (p.client ? ' · ' + esc(p.client) : '')]);
   else if (p.client) kv.push(['Контрагент', esc(p.client)]);
   if (p.art) kv.push(['Количество', '<b>' + p.qty + ' шт</b>' + (p.m2 != null ? ' · ' + p.m2 + ' м²' : '')]);
@@ -1060,7 +1096,7 @@ function doCast(btn) {
   var x = CP[castSel], n = Number(val('castQty'));
   if (!x) { toast('Выберите позицию сменного задания', false); return; }
   if (!(n > 0)) { toast(UNIT === 'form' ? 'Укажите количество форм' : 'Укажите количество', false); return; }
-  var prm = { op: 'Залито', art: x.art, qty: castPcs(), line: { order: x.order, art: x.art, color: x.color } };
+  var prm = { op: 'Залито', art: x.art, qty: castPcs(), line: { order: x.order, art: x.art, color: x.color, post: x.post || '' } };
   if (UNIT === 'form') { prm.unit = 'form'; prm.forms = n; }
   act(prm, btn);
 }
@@ -1083,11 +1119,23 @@ function prepWork(p) {
   show('tShip', onGP);           // отгрузка — только со склада ГП
   show('tPack', !!p.isPack || onGP);   // упаковка — на участке упаковки (и досчёт на СГП)
   show('tPlace', true);          // адрес хранения — для любой паллеты в работе
-  prepPack(p); prepPlace(p); prepStr(p); show('confirmBox', false);
+  prepPack(p); prepPlace(p); prepStr(p); prepEdit(p); show('confirmBox', false);
   tab(onGP ? 'ship' : (p.isPack && !p.packed && state.stage === p.stage ? 'pack' : 'move'));
 }
+function prepEdit(p) {
+  $('eQty').value = p.qty; $('eColor').value = p.color || ''; $('eOrder').value = p.order || ''; $('eClient').value = p.client || ''; $('eReason').value = '';
+  var list = (APP.arts || []).slice(), has = list.some(function (a) { return a.code === p.art; });
+  if (!has && p.art) list.unshift({ code: p.art, name: p.artName || '' });
+  $('eArt').innerHTML = list.map(function (a) { return '<option value="' + esc(a.code) + '"' + (a.code === p.art ? ' selected' : '') + '>' + esc(a.code) + (a.name ? ' — ' + esc(a.name) : '') + '</option>'; }).join('');
+}
+function doEdit(btn) {
+  var q = Number(val('eQty'));
+  if (!(q >= 1)) { toast('Количество — не меньше 1. Если изделий не осталось — проведите брак', false); return; }
+  if (!val('eReason').trim()) { toast('Укажите причину исправления', false); return; }
+  act({ op: 'Правка', qty: q, art: $('eArt').value, color: val('eColor'), order: val('eOrder'), client: val('eClient'), reason: val('eReason') }, btn);
+}
 function tab(t) {
-  ['move', 'bad', 'merge', 'ship', 'pack', 'place', 'str'].forEach(function (x) {
+  ['move', 'bad', 'merge', 'ship', 'pack', 'place', 'str', 'edit'].forEach(function (x) {
     show('p' + x.charAt(0).toUpperCase() + x.slice(1), x === t);
     $('t' + x.charAt(0).toUpperCase() + x.slice(1)).classList.toggle('on', x === t);
   });
