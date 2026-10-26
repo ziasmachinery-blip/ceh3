@@ -188,7 +188,7 @@
   <!-- Главный экран -->
   <section id="vHome" class="hide">
     <div class="tiles">
-      <button class="tile t-scan" onclick="scanStart()"><span class="ti">📷</span>Сканировать</button>
+      <button class="tile t-scan" id="scanTile" onclick="scanStart()"><span class="ti">📷</span>Сканировать</button>
       <button class="tile t-rep" onclick="openReport()"><span class="ti">📊</span>Отчёты</button>
     </div>
     <button class="btn ghost" style="margin:0 0 12px" onclick="openMine()">🕘 Мои действия — отменить или исправить</button>
@@ -420,7 +420,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '26.10.2026 · 20';
+var APP_VER = '26.10.2026 · 21';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -805,6 +805,7 @@ document.addEventListener('keydown', function (e) {
     var code = WEDGE.buf; var fast = WEDGE.fast >= Math.max(3, code.length - 2);
     WEDGE.buf = ''; WEDGE.fast = 0;
     if (code.length >= 3 && fast && (extractId(code) || isAddr(code))) {
+      if (!isTsd()) { ls('tsd', '1'); tsdTile(); }
       if (inField && el.id === 'inId') return;               // поле «Номер паллеты» обработает само
       e.preventDefault();
       if (inField && el.value && el.value.slice(-code.length) === code) el.value = el.value.slice(0, -code.length);
@@ -823,6 +824,7 @@ document.addEventListener('keydown', function (e) {
 
 /* ---------- старт ---------- */
 function init() {
+  try { tsdTile(); } catch (e) {}
   setTheme(curTheme());
   $('verH').textContent = APP_VER + (window.SRV ? ' · сервер' : window.STANDALONE ? ' · сайт' : ' · Apps Script'); $('verP').textContent = $('verH').textContent;
   buildPad();
@@ -1008,7 +1010,15 @@ function camAllowed() {
   } catch (e) { return false; }
 }
 /* «Сканировать»: живая камера, если браузер разрешает; иначе — фото кода. */
+/* ТСД (Mertech и др.): код читает встроенный сканер — оранжевая кнопка, приложение ловит его как ввод с клавиатуры.
+   После первого такого скана телефон запоминается как ТСД: кнопка «Сканировать» подсказывает про кнопку сканера, камера не нужна. */
+function isTsd() { return ls('tsd') === '1'; }
+function tsdTile() {
+  var t = $('scanTile'); if (!t) return;
+  t.innerHTML = isTsd() ? '<span class="ti">📟</span>Сканер ТСД<small style="display:block;font-size:12px;font-weight:600;opacity:.8">жмите оранжевую кнопку</small>' : '<span class="ti">📷</span>Сканировать';
+}
 function scanStart() {
+  if (isTsd()) { toast('Нажмите оранжевую кнопку сканера на ТСД и наведите луч на QR-код', true); return; }
   // в Apps Script камеру браузер не даёт — там только фото; на своём сайте (GitHub Pages) — живая камера
   if (!window.STANDALONE || !camAllowed() || typeof Html5Qrcode === 'undefined') { $('photoQr').click(); return; }
   show('scanOv', true); show('torchBtn', false);
@@ -1024,7 +1034,7 @@ function scanStart() {
     .then(function () {
       try { var c = scanner.getRunningTrackCameraCapabilities(); if (c && c.torchFeature && c.torchFeature().isSupported()) show('torchBtn', true); } catch (e) {}
     })
-    .catch(function () { stopScan(); toast('Нет доступа к камере — разрешите камеру для этого сайта или сделайте фото кода', false); });
+    .catch(function () { stopScan(); toast('Камера недоступна. На ТСД сканируйте оранжевой кнопкой. На телефоне — разрешите камеру: ⋮ → Настройки → Настройки сайтов → Камера', false); });
 }
 var torchOn = false;
 function torch() {
