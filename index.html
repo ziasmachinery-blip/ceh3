@@ -420,7 +420,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '25.10.2026 · 19';
+var APP_VER = '26.10.2026 · 20';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -451,8 +451,21 @@ function call(fn, args, ok, fail) {
   });
   r[fn].apply(r, args);
 }
+/* ТСД со сканером в режиме клавиатуры при русской раскладке «печатает» код русскими буквами (PL → ЗД, ADDR → ФВВК).
+   Переводим такие символы обратно в латиницу по положению клавиш. */
+var RU_EN = { 'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','х':'[','ъ':']','ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','ж':';','э':"'",'я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.','ё':'`',
+  'Х':'{','Ъ':'}','Ж':':','Э':'"','Б':'<','Ю':'>','Ё':'~', '.':'/', ',':'?', '?':'&', '"':'@', '№':'#', ';':'$', ':':'^' };
+function latin(t) {
+  t = String(t || '');
+  if (!/[а-яё]/i.test(t)) return t;                      // латиница — как есть
+  return t.split('').map(function (c) {
+    if (RU_EN[c] !== undefined) return RU_EN[c];
+    var l = RU_EN[c.toLowerCase()];
+    return l !== undefined && /[а-яё]/i.test(c) ? l.toUpperCase() : c;
+  }).join('');
+}
 function extractId(text) {
-  var t = String(text || '').toUpperCase().trim();
+  var t = latin(text).toUpperCase().trim();
   var m = t.match(/PL-?\d+/); if (m) return 'PL-' + m[0].replace(/\D/g, '').padStart(6, '0');
   if (/^\d{1,9}$/.test(t)) return 'PL-' + t.padStart(6, '0');   // штрихкод/ввод только цифрами
   return '';
@@ -646,7 +659,7 @@ function doPlace(btn) {
   if (!a) { toast('Выберите адрес или отсканируйте табличку', false); return; }
   act({ op: 'Размещение', addr: a }, btn);
 }
-function isAddr(t) { return /^ADDR:/i.test(String(t || '').trim()); }
+function isAddr(t) { return /^ADDR:/i.test(latin(t).trim()); }
 function scanAddr() { pendingScan = function () {}; pendingAddr = true; scanStart(); }
 var pendingAddr = false;
 /* табличка адреса: в панели «Разместить» — подставить; на главном — показать паллеты на адресе */
@@ -886,6 +899,7 @@ function switchWs(id, thenOpen) {
 }
 /* код из QR: если на этикетке другой цех (…&w=c1) — сначала переключаемся */
 function handleCode(text, cb) {
+  text = latin(text);
   if (isAddr(text)) { handleAddr(text); return true; }
   var id = extractId(text);
   if (!id) return false;
