@@ -157,6 +157,10 @@
 </div>
 
 <main>
+  <!-- ТСД: невидимое поле, куда сканер вводит код, даже если курсор нигде не стоит -->
+  <input id="scanCatch" inputmode="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-hidden="true" tabindex="-1"
+    style="position:fixed;left:-2000px;top:0;width:10px;height:10px;opacity:0" oninput="catchInput(this)"
+    onkeydown="if(event.key==='Enter'){event.preventDefault();var v=this.value;this.value='';CATCH_LEN=0;if(extractId(v)||isAddr(v)){var cb=pendingScan;pendingScan=null;handleCode(v,cb);}}">
   <!-- Выбор цеха -->
   <section id="vWs" class="hide">
     <div class="card"><b style="font-size:18px">Выберите цех</b><p class="muted" style="margin:4px 0 0">PIN-код подходит, если вы заведены в списке пользователей этого цеха.</p>
@@ -422,7 +426,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '26.10.2026 · 22';
+var APP_VER = '26.10.2026 · 23';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -811,6 +815,7 @@ document.addEventListener('keydown', function (e) {
       if (inField && el.id === 'inId') return;               // поле «Номер паллеты» обработает само
       e.preventDefault();
       if (inField && el.value && el.value.slice(-code.length) === code) el.value = el.value.slice(0, -code.length);
+      if (el && el.id === 'scanCatch') { el.value = ''; CATCH_LEN = 0; }
       if (!$('scanOv').classList.contains('hide')) stopScan();
       var cb = pendingScan; pendingScan = null;
       try { navigator.vibrate && navigator.vibrate(60); } catch (x) {}
@@ -982,9 +987,32 @@ function home() {
 /* ТСД: курсор всегда в поле «Номер паллеты» — так код вводится при любом режиме вывода сканера
    («эмуляция клавиатуры» или «вывод в поле ввода»); экранная клавиатура не показывается */
 function tsdFocus() {
-  var f = $('inId'); if (!f) return;
-  f.inputMode = isTsd() ? 'none' : '';
-  if (isTsd() && !$('vHome').classList.contains('hide')) setTimeout(function () { try { f.focus({ preventScroll: true }); } catch (e) {} }, 150);
+  var f = $('inId'); if (f) f.inputMode = isTsd() ? 'none' : '';
+  keepScanFocus();
+}
+/* На ТСД курсор всегда «стоит» в невидимом поле scanCatch — кроме моментов, когда человек сам вводит что-то в другое поле
+   или открыта камера. Сканер в любом режиме («эмуляция клавиатуры» или «вывод в поле») вводит код туда. */
+function keepScanFocus() {
+  if (!isTsd()) return;
+  var c = $('scanCatch'), a = document.activeElement;
+  if (!c || a === c) return;
+  if (a && a !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  if (!$('scanOv').classList.contains('hide')) return;
+  try { c.focus({ preventScroll: true }); } catch (e) {}
+}
+setInterval(keepScanFocus, 800);
+document.addEventListener('click', function () { setTimeout(keepScanFocus, 300); }, true);
+document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(keepScanFocus, 300); });
+var CATCH_LEN = 0;
+function catchInput(el) {
+  var v = el.value, jump = v.length - CATCH_LEN; CATCH_LEN = v.length;
+  if (jump >= 5 && (extractId(v) || isAddr(v))) {        // сканер вставил код целиком (режим «вывод в поле»)
+    var code = v.replace(/[\r\n]+$/, ''); el.value = ''; CATCH_LEN = 0;
+    if (!$('scanOv').classList.contains('hide')) stopScan();
+    var cb = pendingScan; pendingScan = null;
+    try { navigator.vibrate && navigator.vibrate(60); } catch (x) {}
+    handleCode(code, cb);
+  } else if (v.length > 300) { el.value = ''; CATCH_LEN = 0; }
 }
 /* сканер вставил код в поле целиком (без нажатия Enter) — открываем сами */
 var INID_LEN = 0;
