@@ -179,6 +179,8 @@
       <div class="muted">Вы вошли как</div>
       <div class="big" style="font-size:22px" id="profName">—</div>
       <label>Мой участок</label><select id="inStage"></select>
+      <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-weight:700"><input type="checkbox" id="inTsd" style="width:24px;height:24px;margin:0"> Это ТСД со встроенным сканером</label>
+      <p class="muted" style="margin:4px 0 0;font-size:13px">Код читается кнопкой сканера, экранная клавиатура не выскакивает.</p>
       <button class="btn" onclick="saveStage()">Готово</button>
       <button class="btn ghost" onclick="logout()">Выйти (сменить пользователя)</button>
       <p class="muted" style="text-align:center;margin:12px 0 0">Версия приложения: <b id="verP"></b></p>
@@ -196,7 +198,7 @@
     <div id="readerFile" class="hide"></div>
     <div class="card">
       <label style="margin-top:0">Номер паллеты или ручной сканер штрихкодов</label>
-      <div class="row"><input id="inId" placeholder="PL-000123 или 123" autocapitalize="characters" enterkeyhint="go"
+      <div class="row"><input id="inId" placeholder="PL-000123 или 123" autocapitalize="characters" oninput="inIdInput(this)" enterkeyhint="go"
         onkeydown="if(event.key==='Enter'){event.preventDefault();openId(this.value);}"><button class="btn" style="width:auto;margin:0;padding:12px 16px" onclick="openId(val('inId'))">Найти</button></div>
       <p class="muted" style="margin:10px 0 0">Можно и встроенной камерой телефона: наведите на QR-код и нажмите на ссылку — карточка паллеты откроется сразу.</p>
     </div>
@@ -420,7 +422,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '26.10.2026 · 21';
+var APP_VER = '26.10.2026 · 22';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -949,10 +951,12 @@ function openProfile() {
   show('vSetup', true); show('loginBox', false); show('profBox', true); show('hdrHome', !!state.stage);
   $('profName').textContent = state.user || '—';
   if (state.stage) $('inStage').value = state.stage;
+  $('inTsd').checked = isTsd();
 }
 function openSetup(needPin) { if (needPin || !state.pin || !APP) openLogin(); else openProfile(); }
 function saveStage() {
   state.stage = $('inStage').value; ls(wk('stage'), state.stage); hdr(); show('vSetup', false);
+  ls('tsd', $('inTsd').checked ? '1' : '0'); tsdTile();
   if (START_ID) openId(START_ID); else home();
 }
 function logout() {
@@ -973,6 +977,23 @@ function home() {
   $('inId').value = ''; $('listTitle').textContent = 'На участке «' + state.stage + '»';
   try { history.replaceState(null, '', location.pathname); } catch (e) {}
   loadList();
+  tsdFocus();
+}
+/* ТСД: курсор всегда в поле «Номер паллеты» — так код вводится при любом режиме вывода сканера
+   («эмуляция клавиатуры» или «вывод в поле ввода»); экранная клавиатура не показывается */
+function tsdFocus() {
+  var f = $('inId'); if (!f) return;
+  f.inputMode = isTsd() ? 'none' : '';
+  if (isTsd() && !$('vHome').classList.contains('hide')) setTimeout(function () { try { f.focus({ preventScroll: true }); } catch (e) {} }, 150);
+}
+/* сканер вставил код в поле целиком (без нажатия Enter) — открываем сами */
+var INID_LEN = 0;
+function inIdInput(el) {
+  var v = el.value, jump = v.length - INID_LEN; INID_LEN = v.length;
+  if (jump >= 5 && (extractId(v) || isAddr(v))) { var code = v.replace(/[\r\n]+$/, ''); el.value = ''; INID_LEN = 0;
+    if (!isTsd()) { ls('tsd', '1'); tsdTile(); }
+    try { navigator.vibrate && navigator.vibrate(60); } catch (x) {}
+    handleCode(code, null); }
 }
 var LIST_CACHE = {};
 function loadList() {
@@ -1014,6 +1035,7 @@ function camAllowed() {
    После первого такого скана телефон запоминается как ТСД: кнопка «Сканировать» подсказывает про кнопку сканера, камера не нужна. */
 function isTsd() { return ls('tsd') === '1'; }
 function tsdTile() {
+  try { tsdFocus(); } catch (e) {}
   var t = $('scanTile'); if (!t) return;
   t.innerHTML = isTsd() ? '<span class="ti">📟</span>Сканер ТСД<small style="display:block;font-size:12px;font-weight:600;opacity:.8">жмите оранжевую кнопку</small>' : '<span class="ti">📷</span>Сканировать';
 }
