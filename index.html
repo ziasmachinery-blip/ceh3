@@ -3791,12 +3791,14 @@ function attendanceAdd(btn) {
 }
 function attendanceBadge(p) {
   var box=$('attBadge');box.textContent=''; var title=document.createElement('p');title.textContent=p.name;box.appendChild(title);
+  var details=document.createElement('p');details.textContent='Участок: '+(p.stage || 'не указан')+' · Цех: '+(p.workshop || (WS && WS.name) || 'не указан');box.appendChild(details);
   var q=qrcode(0,'M');q.addData(p.qr);q.make();
   var image=document.createElement('img');image.alt='Персональный QR сотрудника '+p.name;image.width=210;image.height=210;image.src=q.createDataURL(6,24);box.appendChild(image);
   var note=document.createElement('p');note.textContent='Покажите или распечатайте код. Сканировать его может руководитель.';box.appendChild(note);
   var b=document.createElement('button');b.type='button';b.className='btn ghost';b.textContent='Печать QR';b.onclick=function(){
     var w=window.open('','_blank');if(!w){toast('Разрешите всплывающее окно для печати',false);return;}
     w.document.title='QR сотрудника';var label=w.document.createElement('p');label.textContent=p.name;w.document.body.appendChild(label);
+    var detail=w.document.createElement('p');detail.textContent=details.textContent;w.document.body.appendChild(detail);
     var pic=w.document.createElement('img');pic.width=210;pic.height=210;pic.alt='QR';pic.onload=function(){w.focus();w.print();};pic.src=image.src;w.document.body.appendChild(pic);
   };box.appendChild(b);
 }
