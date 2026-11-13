@@ -221,6 +221,15 @@
         style="text-align:center;font-size:26px;letter-spacing:10px" oninput="pinInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
       <div class="pad" id="pad"></div>
       <button class="btn" id="btnLogin" onclick="doLogin()">Войти</button>
+      <button class="btn ghost hide" id="btnRegister" onclick="registrationOpen()">Регистрация</button>
+      <div id="registrationForm" class="hide">
+        <h3>Заявка на регистрацию</h3>
+        <p class="muted">Руководитель подтвердит заявку в таблице и выдаст личный PIN. До подтверждения вход недоступен.</p>
+        <label for="regName">Фамилия и имя</label><input id="regName" maxlength="120" autocomplete="name" placeholder="Иванов Сергей">
+        <button class="btn" onclick="registrationSubmit(this)">Отправить заявку</button>
+        <button class="btn ghost" onclick="registrationReset()">Закрыть</button>
+        <p id="regMessage" role="status" aria-live="polite"></p>
+      </div>
     </div>
     <div class="card hide" id="profBox">
       <div class="muted">Вы вошли как</div>
@@ -900,6 +909,7 @@ function init() {
   call('apiInit', [state.pin], function (c) { afterLogin(c, false); });
 }
 function afterLogin(c, fresh) {
+  registrationReset();
   show('rtAttendance', !!WS && WS.id === 'c3');
   attendanceClear();
   APP = c; setDeco(c.deco);
@@ -950,6 +960,7 @@ function openWs() {
 }
 function closeWs() { show('vWs', false); if (APP && state.stage) home(); else openLogin(); }
 function switchWs(id, thenOpen) {
+  registrationReset();
   attendanceClear();
   var w = wsById(id);
   if (!wsOk(w)) { toast('Цех не подключён', false); return; }
@@ -1002,6 +1013,7 @@ function drawDots() {
   $('pinDots').innerHTML = h; $('inPin').value = PINBUF;
 }
 function openLogin() {
+  registrationReset();
   ['vHome', 'vPallet', 'vReport', 'vWs', 'vMine'].forEach(function (v) { show(v, false); });
   show('hdrHome', false); show('vSetup', true); show('loginBox', true); show('profBox', false);
   PINBUF = ''; drawDots(); hdr();
@@ -1416,6 +1428,32 @@ function act(prm, btn) {
       $('confirmBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   });
+}
+
+var registrationRequest = null;
+function registrationOpen() {
+  if (!WS || WS.id !== 'c3') return;
+  show('registrationForm', true); $('regName').focus();
+}
+function registrationSubmit(btn) {
+  var name = $('regName').value.trim().replace(/\s+/g,' ');
+  if(name.length < 3 || name.length > 120){toast('Укажите фамилию и имя',false);return;}
+  if(!registrationRequest || registrationRequest.name !== name){
+    if(!window.crypto || !window.crypto.getRandomValues){toast('Обновите браузер для регистрации',false);return;}
+    var bytes=new Uint8Array(16);window.crypto.getRandomValues(bytes);
+    registrationRequest={name:name,id:Array.from(bytes).map(function(b){return b.toString(16).padStart(2,'0');}).join('')};
+  }
+  var workshop=WS.id, req=registrationRequest;
+  busy(btn,true); $('regMessage').textContent='Отправка заявки…';
+  call('apiRegister',[req.name,req.id],function(r){
+    busy(btn,false);if(!WS || WS.id!==workshop)return;
+    $('regMessage').textContent=r.message;
+  },function(){busy(btn,false);if(WS && WS.id===workshop)$('regMessage').textContent='Не удалось подтвердить отправку. Повторите попытку или обратитесь к руководителю.';});
+}
+function registrationReset() {
+  registrationRequest=null;show('registrationForm',false);
+  $('regName').value='';$('regMessage').textContent='';
+  show('btnRegister',!!WS && WS.id==='c3');
 }
 
 init();
