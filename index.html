@@ -397,7 +397,7 @@
 
   <!-- Отчёты -->
   <section id="vReport" class="hide">
-    <div class="tabs" style="margin:0 0 10px"><button id="rtShift" class="on" onclick="rTab('shift')">Задание заливки</button><button id="rtStock" onclick="rTab('stock')">Шт на этапах</button><button id="rtAttendance" onclick="rTab('attendance')">Приход сотрудников</button></div>
+    <div class="tabs" style="margin:0 0 10px"><button id="rtShift" class="on" onclick="rTab('shift')">Задание заливки</button><button id="rtStock" onclick="rTab('stock')">Шт на этапах</button><button id="rtAttendance" onclick="rTab('attendance')">Отметка сотрудников</button></div>
     <div id="rShift">
       <div class="card row" style="padding:8px">
         <button class="nav" onclick="rDay(-1)" aria-label="Предыдущий день">‹</button>
@@ -412,12 +412,64 @@
       <div id="rStockBody"></div>
     </div>
 <div id="rAttendance" class="hide">
-  <div class="card"><b>Приход и уход сотрудников</b><p class="muted">Только для руководителя или мастера. Сканируйте QR при приходе и уходе.</p>
-  <button class="btn" onclick="scanStart()">Сканировать QR сотрудника</button>
-  <label for="attDate">Дата начала смены</label><input id="attDate" type="date" onchange="attendanceReport()">
-  <div id="attRows"></div></div>
-  <div class="card"><b>Сотрудники и QR-коды</b><label for="attName">Фамилия и имя</label><input id="attName" maxlength="120">
-  <button class="btn" onclick="attendanceAdd(this)">Добавить сотрудника</button><div id="attPeople"></div><div id="attBadge"></div></div>
+  <!-- Экран 0: меню раздела -->
+  <div id="attMenu">
+    <div class="card"><b style="font-size:17px">Отметка сотрудников</b>
+      <p class="muted" style="margin:4px 0 0">Только для руководителя или мастера.</p>
+      <button class="btn" onclick="attGo('scan')">📷 Сканирование сотрудника</button>
+      <button class="btn ghost" onclick="attGo('shift')">👥 Кто на смене — отчёт</button>
+      <button class="btn ghost" onclick="attGo('people')">🏷 Сотрудники и QR-коды</button>
+      <input id="attDate" type="hidden">
+    </div>
+    <div class="card">
+      <div class="row"><b style="flex:1">Сейчас на смене</b><button class="badge" style="border:0" onclick="attendanceOverview()">обновить</button></div>
+      <div id="attCurrentMenu"></div>
+    </div>
+  </div>
+
+  <!-- Экран 1: сканирование -->
+  <div id="attScan" class="hide">
+    <button class="btn ghost" onclick="attGo('menu')">← Назад</button>
+    <div class="card"><b>Сканирование сотрудника</b>
+      <p class="muted" style="margin:4px 0 10px">Наведите сканер на личный QR сотрудника. Первый скан — приход, второй — уход. Повторный скан того же кода сразу не закрывает смену.</p>
+      <button class="btn" onclick="scanStart()">Сканировать QR сотрудника</button>
+      <div id="attScanLog"></div>
+    </div>
+  </div>
+
+  <!-- Экран 2: кто на смене -->
+  <div id="attShift" class="hide">
+    <button class="btn ghost" onclick="attGo('menu')">← Назад</button>
+    <div class="card"><b>Кто на смене</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <div><label for="attFrom">С</label><input id="attFrom" type="date"></div>
+        <div><label for="attTo">По</label><input id="attTo" type="date"></div>
+      </div>
+      <label for="attStage">Участок</label><select id="attStage"><option value="">Все участки</option></select>
+      <button class="btn" onclick="attendanceOverview()">Показать</button>
+      <button class="btn ghost" onclick="attendanceCsv()">Скачать CSV</button>
+    </div>
+    <div class="card"><b>Сейчас на смене</b><div id="attCurrent"></div></div>
+    <div class="card"><b>Отчёт за период</b><div id="attRows"></div></div>
+    <div class="card"><b>Исправить время</b><p class="muted" style="margin:4px 0 0">Выберите «Исправить» в строке отчёта. Причина обязательна — исходная отметка останется в журнале.</p>
+      <label for="attEditStart">Приход</label><input id="attEditStart" type="datetime-local">
+      <label for="attEditEnd">Уход (можно оставить пустым)</label><input id="attEditEnd" type="datetime-local">
+      <label for="attEditReason">Причина</label><input id="attEditReason" maxlength="300">
+      <button class="btn" onclick="attendanceCorrect(this)">Сохранить исправление</button>
+      <div id="attEditWho"></div>
+    </div>
+    <div class="card"><b>Журнал отметок</b><div id="attAudit"></div></div>
+  </div>
+
+  <!-- Экран 3: сотрудники и QR -->
+  <div id="attPeopleBox" class="hide">
+    <button class="btn ghost" onclick="attGo('menu')">← Назад</button>
+    <div class="card"><b>Сотрудники и QR-коды</b>
+      <label for="attName">Фамилия и имя</label><input id="attName" maxlength="120">
+      <button class="btn" onclick="attendanceAdd(this)">Добавить сотрудника</button>
+      <div id="attPeople"></div><div id="attBadge"></div>
+    </div>
+  </div>
 </div>
     <button class="btn ghost" onclick="home()">⌂ На главную</button>
   </section>
@@ -487,7 +539,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '26.10.2026 · 26';
+var APP_VER = '16.11.2026 · 27';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -3755,14 +3807,29 @@ var qrcode = function() {
 <script>
 var attendanceState = {pending:{}, running:{}, people:[], epoch:0};
 function attendanceClear() {
-  attendanceState.epoch++;attendanceState.pending={};attendanceState.running={};attendanceState.people=[];
-  ['attRows','attPeople','attBadge'].forEach(function(id){var e=$(id);if(e)e.textContent='';});
+  attendanceState.epoch++;attendanceState.pending={};attendanceState.running={};attendanceState.people=[];attendanceState.overview=null;attendanceState.edit=null;
+  ['attRows','attPeople','attBadge','attCurrent','attAudit','attEditWho','attScanLog','attCurrentMenu'].forEach(function(id){var e=$(id);if(e)e.textContent='';});
 }
 function isAttendanceCode(s) { return /^EMP:[A-Z0-9_-]{1,12}:[a-f0-9]{32}$/i.test(String(s || '').trim()); }
 function attendanceStamp(ms) { return new Date(ms).toLocaleString('ru-RU', {timeZone:'Europe/Moscow', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}); }
 function attendanceInit() {
   if (!$('attDate').value) $('attDate').value = dkey(new Date());
-  attendanceReport(); attendancePeople();
+  if(!$('attFrom').value)$('attFrom').value=$('attDate').value;
+  if(!$('attTo').value)$('attTo').value=$('attDate').value;
+  attendanceStages();
+  if (!attendanceState.screen) attGo('menu'); else attGo(attendanceState.screen);
+}
+
+/** Переключение экранов раздела «Отметка сотрудников»: menu | scan | shift | people.
+ *  order — вызывается после переключения (например, сразу загрузить отчёт). */
+function attGo(screen, skipLoad) {
+  attendanceState.screen = screen === 'menu' ? '' : (screen || '');
+  var map = { menu: 'attMenu', scan: 'attScan', shift: 'attShift', people: 'attPeopleBox' };
+  Object.keys(map).forEach(function (k) { show(map[k], k === (screen || 'menu')); });
+  if (screen === 'menu' && !skipLoad) { attendanceOverview(); }
+  if (screen === 'shift' && !skipLoad) { attendanceOverview(); }
+  if (screen === 'people' && !skipLoad) { attendancePeople(); }
+  try { window.scrollTo(0, 0); } catch (e) {}
 }
 function attendanceReport() {
   var box=$('attRows'), epoch=attendanceState.epoch; box.textContent='Загрузка…';
@@ -3812,12 +3879,78 @@ function attendanceScan(code) {
     var b=new Uint32Array(4);window.crypto.getRandomValues(b);id=Array.from(b).map(function(x){return x.toString(16).padStart(8,'0');}).join('-');attendanceState.pending[code]=id;
   }
   attendanceState.running[code]=true;
-  call('apiAttendanceScan',[state.pin,code,id],function(r){
+  call('apiAttendanceScan',[state.pin,code,id,(isTsd()?'ТСД · ':'Браузер · ')+navigator.userAgent.slice(0,90)],function(r){
     if(epoch!==attendanceState.epoch)return;
     delete attendanceState.pending[code];delete attendanceState.running[code];
     toast(r.name+': '+r.event+' · '+attendanceStamp(r.time),true);
-    if(!$('vReport').classList.contains('hide')&&R.tab==='attendance')attendanceReport();
+    var log=$('attScanLog');
+    if(log){
+      var p=document.createElement('p');
+      p.style.margin='10px 0 0';p.style.fontWeight='700';
+      p.textContent=(r.event==='приход'?'✓ ':'✓ ') + r.name + ' — ' + r.event + ', ' + attendanceStamp(r.time) + (r.repeated?' (повторно)':'');
+      log.insertBefore(p, log.firstChild);
+      while(log.children.length>8)log.removeChild(log.lastChild);
+    }
+    if(!$('vReport').classList.contains('hide')&&R.tab==='attendance')attendanceOverview();
   },function(){if(epoch===attendanceState.epoch)delete attendanceState.running[code];});
+}
+</script>
+
+<script>
+function attendanceStages(){
+  var box=$('attStage');if(!box || box.options.length>1)return;
+  (APP && APP.stages || []).forEach(function(st){var o=document.createElement('option');o.value=st;o.textContent=st;box.appendChild(o);});
+}
+function attendanceOverview(){
+  var epoch=attendanceState.epoch,from=$('attFrom').value,to=$('attTo').value,stage=$('attStage').value;
+  $('attRows').textContent='Загрузка…';
+  call('apiAttendanceOverview',[state.pin,from,to,stage],function(data){
+    if(epoch!==attendanceState.epoch)return;
+    attendanceState.overview=data;var box=$('attRows');box.textContent='';
+    if(!data.rows.length)box.textContent='За период отметок нет';
+    data.rows.forEach(function(x){var p=document.createElement('p'),b=document.createElement('button');
+      p.textContent=x.name+' · '+(x.stage||'участок не указан')+' · '+attendanceStamp(x.start)+' — '+(x.end?attendanceStamp(x.end):'на смене')+' ';
+      b.type='button';b.className='btn ghost';b.textContent='Исправить';b.onclick=function(){attendanceEdit(x);};p.appendChild(b);box.appendChild(p);
+    });
+    var cur=$('attCurrent');cur.textContent=data.current.length?'':'Сейчас на смене никого нет';
+    data.current.forEach(function(x){var p=document.createElement('p');p.textContent=x.name+' · '+(x.stage||'участок не указан')+' · с '+attendanceStamp(x.start);cur.appendChild(p);});
+    // короткая сводка на главном экране раздела
+    var cm=$('attCurrentMenu');
+    if(cm){
+      cm.textContent='';
+      var head=document.createElement('p');head.style.fontWeight='800';head.style.margin='6px 0';
+      head.textContent='На смене: '+data.current.length;
+      cm.appendChild(head);
+      if(!data.current.length){var e0=document.createElement('p');e0.className='muted';e0.textContent='Сейчас никого нет';cm.appendChild(e0);}
+      data.current.slice(0,12).forEach(function(x){var p=document.createElement('p');p.className='muted';p.textContent='· '+x.name+' — '+(x.stage||'участок не указан')+', с '+attendanceStamp(x.start);cm.appendChild(p);});
+      if(data.current.length>12){var m0=document.createElement('p');m0.className='muted';m0.textContent='…и ещё '+(data.current.length-12)+' — откройте отчёт';cm.appendChild(m0);}
+    }
+    var audit=$('attAudit');audit.textContent=data.audit.length?'':'Журнал пуст';
+    data.audit.forEach(function(x){var p=document.createElement('p');p.textContent=attendanceStamp(x.at)+' · '+x.event+' · '+x.name+' · '+(x.stage||'—')+' · '+x.manager+' · '+x.device+(x.reason?' · '+x.reason:'');audit.appendChild(p);});
+  },function(){
+    if(epoch!==attendanceState.epoch)return;
+    $('attRows').textContent='Не удалось загрузить отчёт или нет доступа.';
+    var cm=$('attCurrentMenu');
+    if(cm)cm.textContent='Нет доступа к отчёту (нужен вход руководителя или мастера).';
+  });
+}
+function attLocalValue(ms){var d=new Date(ms);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
+function attendanceEdit(x){attendanceState.edit=x;$('attEditWho').textContent='Исправление: '+x.name;$('attEditStart').value=attLocalValue(x.start);$('attEditEnd').value=x.end?attLocalValue(x.end):'';$('attEditReason').value='';}
+function attendanceCorrect(btn){
+ var x=attendanceState.edit,why=$('attEditReason').value.trim();if(!x){toast('Выберите запись в отчёте',false);return;}if(why.length<5){toast('Укажите причину исправления',false);return;}
+ var start=$('attEditStart').value,end=$('attEditEnd').value,epoch=attendanceState.epoch;
+ if(!start){toast('Укажите время прихода',false);return;}
+ if(!window.crypto||!window.crypto.getRandomValues){toast('Браузер не поддерживает исправление',false);return;}
+ var a=new Uint32Array(4);window.crypto.getRandomValues(a);var id=Array.from(a).map(function(v){return v.toString(16).padStart(8,'0');}).join('-');
+ busy(btn,true);call('apiAttendanceCorrect',[state.pin,x.ref,new Date(start).toISOString(),end?new Date(end).toISOString():'',why,id],function(){busy(btn,false);if(epoch!==attendanceState.epoch)return;toast('Время исправлено',true);attendanceState.edit=null;$('attEditWho').textContent='';attendanceOverview();},function(){busy(btn,false);});
+}
+function attendanceCsv(){
+ var d=attendanceState.overview;if(!d){toast('Сначала загрузите отчёт',false);return;}
+ var esc=function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';};
+ var lines=[['ФИО','Участок','Цех','Приход','Уход','Отметил приход','Отметил уход']];
+ d.rows.forEach(function(x){lines.push([x.name,x.stage,x.workshop,attendanceStamp(x.start),x.end?attendanceStamp(x.end):'',x.startedBy,x.endedBy]);});
+ var csv='\ufeff'+lines.map(function(r){return r.map(esc).join(';');}).join('\r\n');
+ var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='attendance-'+$('attFrom').value+'-'+$('attTo').value+'.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},5000);
 }
 </script>
 
