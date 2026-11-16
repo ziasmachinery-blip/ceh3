@@ -439,6 +439,15 @@
         <button id="evEnd" onclick="attSetEvent('end')">Окончание смены</button>
       </div>
       <p class="muted" id="attEvHint" style="margin:8px 0 0"></p>
+      <div id="attPhotoBox" class="hide" style="margin-top:10px">
+        <label style="margin-top:0">Фото сотрудника <span class="muted" id="attPhotoReq"></span></label>
+        <input id="attPhotoInput" type="file" accept="image/*" capture="user" class="hide" onchange="attPhotoPick(this)">
+        <button class="btn ghost" onclick="attPhotoShoot()">📷 Сделать фото</button>
+        <div id="attPhotoPrev" class="hide" style="margin-top:8px">
+          <img id="attPhotoImg" alt="Фото сотрудника" style="width:100%;max-width:220px;border-radius:12px;display:block;margin:0 auto">
+          <button class="btn ghost" onclick="attPhotoClear()">Убрать фото</button>
+        </div>
+      </div>
       <button class="btn" onclick="scanStart()">Сканировать QR сотрудника</button>
       <div id="attScanLog"></div>
     </div>
@@ -3831,6 +3840,40 @@ function attSetEvent(ev) {
   });
   var h = $('attEvHint');
   if (h) h.textContent = ATT_EVENT_HINTS[ev] || '';
+  attPhotoMode();
+}
+
+/* ---------- фото при отметке ---------- */
+function attPhotoMode() {
+  var m = (APP && APP.photoMode != null) ? APP.photoMode : 1;
+  show('attPhotoBox', m !== 0);
+  var r = $('attPhotoReq');
+  if (r) r.textContent = m === 2 ? '(обязательно)' : (m === 1 ? '(по желанию)' : '');
+}
+function attPhotoShoot() { var i = $('attPhotoInput'); if (i) { i.value = ''; i.click(); } }
+function attPhotoClear() {
+  attendanceState.photo = null;
+  show('attPhotoPrev', false);
+  var img = $('attPhotoImg'); if (img) img.removeAttribute('src');
+}
+/** Фото сжимаем до 1000 px по длинной стороне — быстрее отправка и меньше файл на Диске. */
+function attPhotoPick(inp) {
+  var f = inp.files && inp.files[0];
+  if (!f) return;
+  var img = new Image(), url = URL.createObjectURL(f);
+  img.onload = function () {
+    var k = Math.min(1, 1000 / Math.max(img.width, img.height));
+    var c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    attendanceState.photo = c.toDataURL('image/jpeg', 0.8);
+    var el = $('attPhotoImg');
+    if (el) el.src = attendanceState.photo;
+    show('attPhotoPrev', true);
+  };
+  img.onerror = function () { URL.revokeObjectURL(url); toast('Не удалось прочитать фото', false); };
+  img.src = url;
 }
 function attendanceClear() {
   attendanceState.epoch++;attendanceState.pending={};attendanceState.running={};attendanceState.people=[];attendanceState.overview=null;attendanceState.edit=null;
@@ -3900,26 +3943,35 @@ function attendanceScan(code) {
   code=String(code).trim().toUpperCase();
   var epoch=attendanceState.epoch;
   if(attendanceState.running[code])return;
+  var mode=(APP && APP.photoMode!=null)?APP.photoMode:1;
+  var shot=attendanceState.photo||'';
+  if(mode===2 && !shot){toast('Сначала сделайте фото сотрудника',false);attPhotoShoot();return;}
   var id=attendanceState.pending[code];
   if(!id){
     if(!window.crypto || !window.crypto.getRandomValues){toast('Браузер не поддерживает безопасную отметку',false);return;}
     var b=new Uint32Array(4);window.crypto.getRandomValues(b);id=Array.from(b).map(function(x){return x.toString(16).padStart(8,'0');}).join('-');attendanceState.pending[code]=id;
   }
   attendanceState.running[code]=true;
-  call('apiAttendanceScan',[state.pin,code,id,(isTsd()?'ТСД · ':'Браузер · ')+navigator.userAgent.slice(0,90),attendanceState.event||'start'],function(r){
+  call('apiAttendanceScan',[state.pin,code,id,(isTsd()?'ТСД · ':'Браузер · ')+navigator.userAgent.slice(0,90),attendanceState.event||'start',shot],function(r){
     if(epoch!==attendanceState.epoch)return;
     delete attendanceState.pending[code];delete attendanceState.running[code];
     toast(r.name+': '+r.event+' · '+attendanceStamp(r.time),true);
+    attPhotoClear();
     var log=$('attScanLog');
     if(log){
       var p=document.createElement('p');
       p.style.margin='10px 0 0';p.style.fontWeight='700';
-      p.textContent='✓ ' + r.name + ' — ' + r.event + ', ' + attendanceStamp(r.time) + (r.repeated?' (повторно)':'');
+      p.textContent='✓ ' + r.name + ' — ' + r.event + ', ' + attendanceStamp(r.time) + (r.repeated?' (повторно)':'') + (r.photo?' · 📷':'');
       log.insertBefore(p, log.firstChild);
       while(log.children.length>8)log.removeChild(log.lastChild);
     }
     if(!$('vReport').classList.contains('hide')&&R.tab==='attendance')attendanceOverview();
-  },function(){if(epoch===attendanceState.epoch)delete attendanceState.running[code];});
+  },function(m){
+    if(epoch!==attendanceState.epoch)return;
+    delete attendanceState.running[code];
+    // фото не принято — просим сделать заново, отметка при этом не потеряна
+    if(/фото/i.test(String(m||''))){attendanceState.pending[code]=id;}
+  });
 }
 </script>
 
@@ -3959,7 +4011,12 @@ function attendanceOverview(){
       if(data.current.length>12){var m0=document.createElement('p');m0.className='muted';m0.textContent='…и ещё '+(data.current.length-12)+' — откройте отчёт';cm.appendChild(m0);}
     }
     var audit=$('attAudit');audit.textContent=data.audit.length?'':'Журнал пуст';
-    data.audit.forEach(function(x){var p=document.createElement('p');p.textContent=attendanceStamp(x.at)+' · '+x.event+' · '+x.name+' · '+(x.stage||'—')+' · '+x.manager+' · '+x.device+(x.reason?' · '+x.reason:'');audit.appendChild(p);});
+    data.audit.forEach(function(x){
+      var p=document.createElement('p');
+      p.textContent=attendanceStamp(x.at)+' · '+x.event+' · '+x.name+' · '+(x.stage||'—')+' · '+x.manager+' · '+x.device+(x.reason?' · '+x.reason:'')+' ';
+      if(x.photo){var a=document.createElement('a');a.href=x.photo;a.target='_blank';a.rel='noopener';a.textContent='📷 фото';p.appendChild(a);}
+      audit.appendChild(p);
+    });
   },function(){
     if(epoch!==attendanceState.epoch)return;
     $('attRows').textContent='Не удалось загрузить отчёт или нет доступа.';
