@@ -431,7 +431,14 @@
   <div id="attScan" class="hide">
     <button class="btn ghost" onclick="attGo('menu')">← Назад</button>
     <div class="card"><b>Сканирование сотрудника</b>
-      <p class="muted" style="margin:4px 0 10px">Наведите сканер на личный QR сотрудника. Первый скан — приход, второй — уход. Повторный скан того же кода сразу не закрывает смену.</p>
+      <p class="muted" style="margin:4px 0 8px">Выберите вид отметки, затем отсканируйте личный QR сотрудника.</p>
+      <div class="seg" id="attEvSeg" style="flex-wrap:wrap;gap:6px">
+        <button id="evStart" class="on" onclick="attSetEvent('start')">Начало смены</button>
+        <button id="evLunchOut" onclick="attSetEvent('lunchOut')">Уход на обед</button>
+        <button id="evLunchIn" onclick="attSetEvent('lunchIn')">Возврат с обеда</button>
+        <button id="evEnd" onclick="attSetEvent('end')">Окончание смены</button>
+      </div>
+      <p class="muted" id="attEvHint" style="margin:8px 0 0"></p>
       <button class="btn" onclick="scanStart()">Сканировать QR сотрудника</button>
       <div id="attScanLog"></div>
     </div>
@@ -3805,7 +3812,26 @@ var qrcode = function() {
 
 </script>
 <script>
-var attendanceState = {pending:{}, running:{}, people:[], epoch:0};
+var attendanceState = {pending:{}, running:{}, people:[], epoch:0, event:'start', screen:''};
+
+/** Вид отметки: start | lunchOut | lunchIn | end. */
+var ATT_EVENT_LABELS = { start: 'Начало смены', lunchOut: 'Уход на обед', lunchIn: 'Возврат с обеда', end: 'Окончание смены' };
+var ATT_EVENT_HINTS = {
+  start: 'Сотрудник пришёл на работу. Если смена уже открыта — приложение подскажет время начала.',
+  lunchOut: 'Сотрудник уходит на обед. Отмечается один раз за смену.',
+  lunchIn: 'Сотрудник вернулся с обеда. Продолжительность обеда попадёт в отчёт.',
+  end: 'Сотрудник закончил работу. Смена закрывается, рабочее время считается автоматически.'
+};
+function attSetEvent(ev) {
+  if (!ATT_EVENT_LABELS[ev]) ev = 'start';
+  attendanceState.event = ev;
+  ['start','lunchOut','lunchIn','end'].forEach(function (k) {
+    var b = $('ev' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (b) b.classList.toggle('on', k === ev);
+  });
+  var h = $('attEvHint');
+  if (h) h.textContent = ATT_EVENT_HINTS[ev] || '';
+}
 function attendanceClear() {
   attendanceState.epoch++;attendanceState.pending={};attendanceState.running={};attendanceState.people=[];attendanceState.overview=null;attendanceState.edit=null;
   ['attRows','attPeople','attBadge','attCurrent','attAudit','attEditWho','attScanLog','attCurrentMenu'].forEach(function(id){var e=$(id);if(e)e.textContent='';});
@@ -3826,6 +3852,7 @@ function attGo(screen, skipLoad) {
   attendanceState.screen = screen === 'menu' ? '' : (screen || '');
   var map = { menu: 'attMenu', scan: 'attScan', shift: 'attShift', people: 'attPeopleBox' };
   Object.keys(map).forEach(function (k) { show(map[k], k === (screen || 'menu')); });
+  if (screen === 'scan') attSetEvent(attendanceState.event || 'start');
   if (screen === 'menu' && !skipLoad) { attendanceOverview(); }
   if (screen === 'shift' && !skipLoad) { attendanceOverview(); }
   if (screen === 'people' && !skipLoad) { attendancePeople(); }
@@ -3879,7 +3906,7 @@ function attendanceScan(code) {
     var b=new Uint32Array(4);window.crypto.getRandomValues(b);id=Array.from(b).map(function(x){return x.toString(16).padStart(8,'0');}).join('-');attendanceState.pending[code]=id;
   }
   attendanceState.running[code]=true;
-  call('apiAttendanceScan',[state.pin,code,id,(isTsd()?'ТСД · ':'Браузер · ')+navigator.userAgent.slice(0,90)],function(r){
+  call('apiAttendanceScan',[state.pin,code,id,(isTsd()?'ТСД · ':'Браузер · ')+navigator.userAgent.slice(0,90),attendanceState.event||'start'],function(r){
     if(epoch!==attendanceState.epoch)return;
     delete attendanceState.pending[code];delete attendanceState.running[code];
     toast(r.name+': '+r.event+' · '+attendanceStamp(r.time),true);
@@ -3887,7 +3914,7 @@ function attendanceScan(code) {
     if(log){
       var p=document.createElement('p');
       p.style.margin='10px 0 0';p.style.fontWeight='700';
-      p.textContent=(r.event==='приход'?'✓ ':'✓ ') + r.name + ' — ' + r.event + ', ' + attendanceStamp(r.time) + (r.repeated?' (повторно)':'');
+      p.textContent='✓ ' + r.name + ' — ' + r.event + ', ' + attendanceStamp(r.time) + (r.repeated?' (повторно)':'');
       log.insertBefore(p, log.firstChild);
       while(log.children.length>8)log.removeChild(log.lastChild);
     }
@@ -3908,12 +3935,18 @@ function attendanceOverview(){
     if(epoch!==attendanceState.epoch)return;
     attendanceState.overview=data;var box=$('attRows');box.textContent='';
     if(!data.rows.length)box.textContent='За период отметок нет';
-    data.rows.forEach(function(x){var p=document.createElement('p'),b=document.createElement('button');
-      p.textContent=x.name+' · '+(x.stage||'участок не указан')+' · '+attendanceStamp(x.start)+' — '+(x.end?attendanceStamp(x.end):'на смене')+' ';
+    data.rows.forEach(function(x){
+      var p=document.createElement('p'),b=document.createElement('button');
+      var lunch = x.lunchMin != null ? ' · обед ' + x.lunchMin + ' мин' : (x.lunchOut ? ' · на обеде' : '');
+      p.textContent=x.name+' · '+(x.stage||'участок не указан')+' · '+attendanceStamp(x.start)+' — '+(x.end?attendanceStamp(x.end):'на смене')+lunch+' ';
       b.type='button';b.className='btn ghost';b.textContent='Исправить';b.onclick=function(){attendanceEdit(x);};p.appendChild(b);box.appendChild(p);
     });
     var cur=$('attCurrent');cur.textContent=data.current.length?'':'Сейчас на смене никого нет';
-    data.current.forEach(function(x){var p=document.createElement('p');p.textContent=x.name+' · '+(x.stage||'участок не указан')+' · с '+attendanceStamp(x.start);cur.appendChild(p);});
+    data.current.forEach(function(x){
+      var p=document.createElement('p');
+      p.textContent=x.name+' · '+(x.stage||'участок не указан')+' · с '+attendanceStamp(x.start)+(x.lunchOut?(x.lunchIn?' · обед '+x.lunchMin+' мин':' · на обеде'):'');
+      cur.appendChild(p);
+    });
     // короткая сводка на главном экране раздела
     var cm=$('attCurrentMenu');
     if(cm){
@@ -3947,8 +3980,10 @@ function attendanceCorrect(btn){
 function attendanceCsv(){
  var d=attendanceState.overview;if(!d){toast('Сначала загрузите отчёт',false);return;}
  var esc=function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';};
- var lines=[['ФИО','Участок','Цех','Приход','Уход','Отметил приход','Отметил уход']];
- d.rows.forEach(function(x){lines.push([x.name,x.stage,x.workshop,attendanceStamp(x.start),x.end?attendanceStamp(x.end):'',x.startedBy,x.endedBy]);});
+ var hm=function(ms){if(ms==null)return '';var h=Math.floor(ms/36e5),m=Math.round(ms%36e5/6e4);return h+' ч '+m+' мин';};
+ var work=function(x){if(x.end==null)return '';var ms=x.end-x.start-((x.lunchOut&&x.lunchIn)?(x.lunchIn-x.lunchOut):0);return hm(Math.max(0,ms));};
+ var lines=[['ФИО','Участок','Цех','Начало смены','Уход на обед','Возврат с обеда','Окончание смены','Обед, мин','Рабочее время','Кто открыл','Кто закрыл']];
+ d.rows.forEach(function(x){lines.push([x.name,x.stage,x.workshop,attendanceStamp(x.start),x.lunchOut?attendanceStamp(x.lunchOut):'',x.lunchIn?attendanceStamp(x.lunchIn):'',x.end?attendanceStamp(x.end):'',x.lunchMin==null?'':x.lunchMin,work(x),x.startedBy,x.endedBy]);});
  var csv='\ufeff'+lines.map(function(r){return r.map(esc).join(';');}).join('\r\n');
  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='attendance-'+$('attFrom').value+'-'+$('attTo').value+'.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},5000);
 }
