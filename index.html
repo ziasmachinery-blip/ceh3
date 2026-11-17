@@ -555,7 +555,7 @@ var START_ID = (document.body.getAttribute('data-start') || '').trim();
 if (/^<\?/.test(START_ID)) START_ID = '';
 if (!START_ID) { try { START_ID = (new URLSearchParams(location.search).get('p') || '').trim().toUpperCase(); } catch (e) {} }
 var APP = null, P = null, scanner = null, rework = false, moveTarget = '';
-var APP_VER = '16.11.2026 · 27';
+var APP_VER = '17.11.2026 · 28';
 function wk(k) { return window.STANDALONE && WS ? 'ws_' + WS.id + '_' + k : 'c3_' + k; }
 (function () {   // перенос старых настроек (до появления цехов) в текущий цех
   if (!WS) return;
@@ -971,7 +971,7 @@ document.addEventListener('keydown', function (e) {
 function init() {
   try { tsdTile(); } catch (e) {}
   setTheme(curTheme());
-  $('verH').textContent = APP_VER + (window.SRV ? ' · сервер' : window.STANDALONE ? ' · сайт' : ' · Apps Script'); $('verP').textContent = $('verH').textContent;
+  $('verH').textContent = APP_VER + (window.SRV ? ' · сервер' : window.STANDALONE ? ' · сайт' : ' · Apps Script') + (window.SRV_VER ? ' · код ' + window.SRV_VER : ' · код старый'); $('verP').textContent = $('verH').textContent;
   buildPad();
   if (!state.pin) { openLogin(); return; }
   call('apiInit', [state.pin], function (c) { afterLogin(c, false); });
@@ -981,6 +981,7 @@ function afterLogin(c, fresh) {
   show('rtAttendance', !!WS && WS.id === 'c3');
   attendanceClear();
   APP = c; setDeco(c.deco);
+  if (c.codeVer) window.SRV_VER = c.codeVer;   // версия серверного кода — видна внизу экрана
   if (!window.STANDALONE && c.ws) WS = wsById(c.ws) || { id: c.ws, name: c.wsName || 'Цех', api: '' };
   if (c.user && c.user.name) { state.user = c.user.name; ls(wk('user'), state.user); }
   if (!state.user) state.user = 'Без имени';
