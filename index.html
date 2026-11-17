@@ -3962,10 +3962,12 @@ function attendanceScan(code) {
     if(log){
       var p=document.createElement('p');
       p.style.margin='10px 0 0';p.style.fontWeight='700';
-      p.textContent='✓ ' + r.name + ' — ' + r.event + ', ' + attendanceStamp(r.time) + (r.repeated?' (повторно)':'') + (r.photo?' · 📷':'');
+      p.textContent='✓ ' + r.name + ' — ' + r.event + ', ' + attendanceStamp(r.time) + (r.repeated?' (повторно)':'') + (r.photo?' · 📷':'') + (r.photoWarning?' · фото не сохранено':'');
       log.insertBefore(p, log.firstChild);
       while(log.children.length>8)log.removeChild(log.lastChild);
     }
+    // фото не сохранилось, но отметка записана — предупреждаем отдельно, без ошибки
+    if(r.photoWarning)toast('Отметка записана. Фото не сохранено: нет доступа к Google Диску.',false);
     if(!$('vReport').classList.contains('hide')&&R.tab==='attendance')attendanceOverview();
   },function(m){
     if(epoch!==attendanceState.epoch)return;
